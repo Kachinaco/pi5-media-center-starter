@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Library – SimplStream</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #000; color: #fff; font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif; min-height: 100vh; }
+
+/* ── HEADER ── */
+.ss-header { background: #000; padding: 10px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 200; border-bottom: 1px solid #111; }
+.ss-logo { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
+.ss-logo .s1 { color: #4A90D9; }
+.ss-logo .s2 { color: #fff; }
+.back-btn { background: none; border: 1px solid #2a2a2a; color: #888; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; white-space: nowrap; }
+.back-btn:hover { color: #fff; border-color: #555; }
+.search-wrap { flex: 1; max-width: 380px; }
+.search-wrap input { width: 100%; background: #0d0d0d; border: 1px solid #1e1e1e; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 0.88rem; outline: none; }
+.search-wrap input:focus { border-color: #4A90D9; }
+.count { color: #555; font-size: 0.82rem; white-space: nowrap; margin-left: auto; }
+
+/* ── FILTERS ── */
+.filters { padding: 9px 24px; display: flex; gap: 6px; flex-wrap: wrap; background: #000; border-bottom: 1px solid #0d0d0d; }
+.filter-btn { background: #0d0d0d; border: 1px solid #1e1e1e; color: #777; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 0.76rem; white-space: nowrap; }
+.filter-btn:hover { color: #fff; }
+.filter-btn.active { background: #4A90D9; border-color: #4A90D9; color: #fff; }
+
+/* ── PAGE TITLE ── */
+.page-title { font-size: 1.35rem; font-weight: 700; padding: 18px 24px 10px; }
+
+/* ── GRID ── */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 6px; padding: 0 24px 24px; }
+@media (min-width: 1200px) { .grid { grid-template-columns: repeat(6, 1fr); } }
+.movie-card { cursor: pointer; position: relative; transition: transform 0.13s; }
+.movie-card:hover { transform: scale(1.05); z-index: 1; }
+.movie-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; background: #0d0d0d; }
+.movie-card .no-poster { width: 100%; aspect-ratio: 2/3; background: #0d0d0d; display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px; font-size: 0.72rem; color: #555; }
+.movie-card .card-title { padding: 4px 2px; font-size: 0.72rem; color: #888; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-badge { position: absolute; top: 4px; left: 4px; background: #4A90D9; color: #fff; font-size: 0.58rem; font-weight: 700; padding: 2px 5px; border-radius: 3px; text-transform: uppercase; }
+.watched-badge { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.75); color: #4ade80; font-size: 0.7rem; padding: 2px 6px; border-radius: 3px; }
+.progress-badge { position: absolute; bottom: 24px; left: 0; right: 0; background: rgba(0,0,0,0.7); color: #4A90D9; font-size: 0.65rem; text-align: center; padding: 3px 4px; font-weight: 600; }
+
+/* ── CONTINUE WATCHING ── */
+.continue-section { padding: 12px 24px 0; }
+.continue-heading { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 10px; }
+.continue-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; }
+.continue-card { flex-shrink: 0; width: 110px; cursor: pointer; position: relative; }
+.continue-card:hover { opacity: 0.85; }
+.continue-card img { width: 110px; height: 165px; object-fit: cover; display: block; background: #0d0d0d; }
+.continue-card .c-progress { background: #4A90D9; height: 3px; width: 100%; }
+.continue-card .c-label { font-size: 0.65rem; color: #4A90D9; font-weight: 700; padding: 3px 2px 0; text-align: center; }
+.continue-card .c-title { font-size: 0.65rem; color: #888; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 2px 4px; }
+
+.empty { padding: 80px 24px; color: #333; font-size: 1rem; }
+
+/* ── DETAIL PAGE ── */
+.detail-page { display: none; position: fixed; inset: 0; background: #000; z-index: 100; overflow-y: auto; }
+.detail-page.open { display: block; }
+.detail-backdrop { position: absolute; inset: 0; height: 520px; background-size: cover; background-position: center top; }
+.detail-backdrop::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.85) 60%, #000 100%); }
+.detail-nav { position: sticky; top: 0; z-index: 10; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.detail-back { background: none; border: 1px solid #2a2a2a; color: #aaa; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; }
+.detail-back:hover { color: #fff; }
+.detail-content { position: relative; z-index: 1; padding: 60px 48px 48px; max-width: 100%; }
+.detail-title { font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 14px; }
+.detail-meta { display: flex; align-items: center; gap: 16px; font-size: 1rem; color: #aaa; margin-bottom: 18px; flex-wrap: wrap; }
+.detail-meta .rating { color: #f5c518; font-weight: 600; }
+.detail-overview { font-size: 1rem; line-height: 1.65; color: #ccc; max-width: 800px; margin-bottom: 26px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.detail-btns { display: flex; gap: 10px; margin-bottom: 28px; flex-wrap: wrap; }
+.btn-play { background: #fff; color: #000; border: none; padding: 10px 28px; border-radius: 6px; font-size: 0.9rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.btn-play:hover { background: #e0e0e0; }
+.btn-secondary { background: rgba(255,255,255,0.15); color: #fff; border: none; padding: 10px 22px; border-radius: 6px; font-size: 0.9rem; cursor: pointer; backdrop-filter: blur(4px); display: flex; align-items: center; gap: 8px; }
+.btn-secondary:hover { background: rgba(255,255,255,0.22); }
+.detail-genres { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 28px; }
+.genre-chip { background: #4A90D9; color: #fff; font-size: 0.75rem; padding: 4px 14px; border-radius: 20px; }
+.section-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; color: #fff; }
+.cast-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; }
+.cast-card { flex-shrink: 0; text-align: center; width: 76px; }
+.cast-card img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #111; display: block; margin: 0 auto 6px; }
+.cast-card .cast-no-img { width: 64px; height: 64px; border-radius: 50%; background: #1a1a1a; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #444; }
+.cast-card .cast-name { font-size: 0.68rem; color: #aaa; line-height: 1.3; }
+
+/* ── EPISODE SECTION (TV) ── */
+.ep-section { margin-top: 28px; }
+.season-tabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px; }
+.season-tab { background: #0d0d0d; border: 1px solid #1e1e1e; color: #777; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; }
+.season-tab:hover { color: #fff; }
+.season-tab.active { background: #4A90D9; border-color: #4A90D9; color: #fff; }
+.ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.ep-card { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 6px; padding: 12px 14px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; transition: background 0.13s; }
+.ep-card:hover { background: #151515; border-color: #2a2a2a; }
+.ep-card.active { border-color: #4A90D9; background: #0a1a2e; }
+.ep-card.watched { opacity: 0.55; }
+.ep-card.watched .ep-num::after { content: ' ✓'; color: #4ade80; font-size: 0.75rem; }
+.ep-num { font-size: 1.1rem; font-weight: 700; color: #4A90D9; min-width: 32px; }
+.ep-info .ep-name { font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 3px; }
+.ep-info .ep-desc { font-size: 0.75rem; color: #666; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── PLAYER ── */
+.player-overlay { display: none; position: fixed; inset: 0; background: #000; z-index: 300; flex-direction: column; }
+.player-overlay.open { display: flex; }
+.player-top { padding: 8px 16px; display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.85); border-bottom: 1px solid #111; flex-shrink: 0; position: absolute; top: 0; left: 0; right: 0; z-index: 10; transition: opacity 0.4s; }
+.player-top.hidden { opacity: 0; pointer-events: none; }
+.player-title-text { font-size: 0.9rem; font-weight: 600; flex: 1; color: #fff; }
+.player-close { background: #dc2626; border: none; color: #fff; width: 30px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 0.95rem; flex-shrink: 0; }
+.player-close:hover { background: #ef4444; }
+.src-bar { display: flex; gap: 6px; padding: 6px 16px; background: rgba(5,5,5,0.85); flex-shrink: 0; flex-wrap: wrap; border-bottom: 1px solid #111; position: absolute; top: 48px; left: 0; right: 0; z-index: 10; transition: opacity 0.4s; }
+.src-bar.hidden { opacity: 0; pointer-events: none; }
+/* Always-visible close button in top-right corner */
+.player-exit-btn { position: absolute; top: 10px; right: 10px; z-index: 50; background: rgba(220,38,38,0.85); border: none; color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: background 0.2s, opacity 0.5s; }
+.player-exit-btn:hover { background: rgba(220,38,38,1); }
+.player-exit-btn.hidden { opacity: 0; pointer-events: none; }
+/* Mouse-tracking strip — thin invisible strip above iframe to catch mouse movement */
+.mouse-zone { position: absolute; top: 0; left: 0; right: 0; height: 6px; z-index: 100; }
+.mouse-zone-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; z-index: 100; }
+.src-btn { background: #111; border: 1px solid #1e1e1e; color: #888; padding: 4px 12px; border-radius: 5px; cursor: pointer; font-size: 0.76rem; }
+.src-btn:hover { color: #fff; }
+.src-btn.active { background: #4A90D9; border-color: #4A90D9; color: #fff; }
+.src-note { margin-left: auto; align-self: center; color: #6b7280; font-size: 0.72rem; white-space: nowrap; }
+.src-note.good { color: #60a5fa; }
+.sep { width: 1px; height: 18px; background: #1e1e1e; }
+.player-frame { flex: 1; min-height: 0; position: relative; }
+.player-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; display: block; }
+</style>
+<link rel="stylesheet" href="/assets/fullscreen-fix.css?v=20260510141232">
+</head>
+<body>
+
+<!-- ── LIBRARY VIEW ── -->
+<div id="libraryView">
+  <div class="ss-header">
+    <button class="back-btn" onclick="window.location.href='/'">← SimplStream</button>
+    <div class="ss-logo"><span class="s1">Simpl</span><span class="s2">Stream</span></div>
+    <div class="search-wrap"><input type="text" id="searchInput" placeholder="Search your library..." oninput="applyFilters()"></div>
+    <span class="count" id="countLabel">0 items</span>
+  </div>
+  <div class="filters" id="filterBar"></div>
+  <div class="continue-section" id="continueSection" style="display:none">
+    <div class="continue-heading">▶ Continue Watching</div>
+    <div class="continue-row" id="continueRow"></div>
+  </div>
+  <div class="page-title">My Watchlist</div>
+  <div class="grid" id="movieGrid"></div>
+  <div class="empty" id="emptyState" style="display:none">No results found</div>
+</div>
+
+<!-- ── DETAIL VIEW ── -->
+<div class="detail-page" id="detailPage">
+  <div class="detail-backdrop" id="detailBackdrop"></div>
+  <div class="detail-nav">
+    <button class="detail-back" onclick="closeDetail()">← Back</button>
+    <div class="ss-logo"><span class="s1">Simpl</span><span class="s2">Stream</span></div>
+  </div>
+  <div class="detail-content">
+    <div class="detail-title" id="detailTitle"></div>
+    <div class="detail-meta" id="detailMeta"></div>
+    <div class="detail-overview" id="detailOverview"></div>
+    <div class="detail-btns">
+      <button class="btn-play" id="playBtn" onclick="startPlay()">▶ Play</button>
+      <button class="btn-secondary" id="trailerBtn" style="display:none" onclick="playTrailer()">▶ Trailer</button>
+    </div>
+    <div class="detail-genres" id="detailGenres"></div>
+    <div id="castSection" style="display:none">
+      <div class="section-title">Cast</div>
+      <div class="cast-row" id="castRow"></div>
+    </div>
+    <div class="ep-section" id="epSection" style="display:none">
+      <div class="section-title">Episodes</div>
+      <div class="season-tabs" id="detailSeasonTabs"></div>
+      <div class="ep-grid" id="detailEpGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRAILER ── -->
+<div class="player-overlay" id="playerOverlay">
+  <div class="player-top" id="playerTop">
+    <button class="player-close" onclick="closeTrailer()">&#x2715;</button>
+    <span class="player-title-text" id="playerTitle"></span>
+  </div>
+  <div class="player-frame">
+    <iframe id="playerFrame" allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *" sandbox="allow-same-origin allow-scripts allow-forms allow-presentation" referrerpolicy="no-referrer" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>
+  </div>
+</div>
+
+<script>
+const TMDB_KEY = 'REPLACE_WITH_TMDB_KEY';
+const TMDB_IMG = 'https://image.tmdb.org/t/p/';
+
+const SOURCE_IDS = ['videasy', 'vidsrc', '111movies', 'vidlink', 'vidfast'];
+const LOCAL_LAUNCHER_BASE = 'http://127.0.0.1:8899';
+
+const FILTERS = [
+  { label: 'All',              key: 'all',          re: null },
+  { label: 'Star Wars',        key: 'starwars',     re: /star wars|phantom menace|clone wars|revenge of the sith|new hope|empire strikes|return of the jedi|force awakens|last jedi|rise of skywalker|rogue one|solo:/i },
+  { label: 'Marvel',           key: 'marvel',       re: /iron man|avenger|captain america|thor|incredible hulk|black widow|spider.?man|doctor strange|ant.?man|guardians of the galaxy|black panther|shang.?chi|eternals/i },
+  { label: 'Pokemon',          key: 'pokemon',      re: /pok[eé]mon|mewtwo|pikachu|lugia|celebi|jirachi|deoxys|arceus|zoroark|genesect|diancie|hoopa|volcanion|marshadow|zeraora/i },
+  { label: 'Lord of the Rings',key: 'lotr',         re: /lord of the rings|fellowship of the ring|two towers|return of the king|hobbit|unexpected journey|desolation of smaug|five armies/i },
+  { label: 'Transformers',     key: 'transformers', re: /transformer|bumblebee|age of extinction|dark of the moon|revenge of the fallen|last knight|rise of the beasts/i },
+  { label: 'Indiana Jones',    key: 'indy',         re: /indiana jones|raiders of the lost|temple of doom|last crusade|crystal skull|dial of destiny/i },
+  { label: 'Now You See Me',   key: 'nysm',         re: /now you see me/i },
+];
+
+let allMovies = [], activeFilter = 'all';
+const DEFAULT_MOVIE_SOURCE = 'vidfast';
+const DEFAULT_TV_SOURCE = 'vidfast';
+let activeMovieSource = DEFAULT_MOVIE_SOURCE;
+let activeTvSource = DEFAULT_TV_SOURCE;
+let currentId = null, currentType = 'movie', currentSeason = 1, currentEp = 1;
+let currentTrailerKey = null;
+let seasonsCache = {};
+let sharedContinueItems = [];
+
+function normalizeSourceId(id) {
+  if (id === 'vsembed') return 'vidsrc';
+  return SOURCE_IDS.includes(id) ? id : DEFAULT_TV_SOURCE;
+}
+
+function getActiveSourceId(type = currentType) {
+  const sourceId = type === 'tv' ? activeTvSource : activeMovieSource;
+  return normalizeSourceId(sourceId);
+}
+
+function setActiveSourceId(id, type = currentType) {
+  const sourceId = normalizeSourceId(id);
+  if (type === 'tv') activeTvSource = sourceId;
+  else activeMovieSource = sourceId;
+}
+
+// ── WATCH HISTORY ──
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('simplstream_history') || '{}'); } catch(e) { return {}; }
+}
+function saveHistory(h) {
+  try { localStorage.setItem('simplstream_history', JSON.stringify(h)); } catch(e) {}
+}
+function markWatched(id, type, title, poster, season, ep) {
+  const h = getHistory();
+  const key = String(id);
+  if (!h[key]) h[key] = { type, title, poster, watchedEps: {}, lastWatched: 0 };
+  if (type === 'tv') {
+    h[key].lastSeason = season;
+    h[key].lastEp = ep;
+    h[key].watchedEps[`${season}-${ep}`] = true;
+  } else {
+    h[key].watched = true;
+  }
+  h[key].lastWatched = Date.now();
+  h[key].title = title;
+  h[key].poster = poster;
+  saveHistory(h);
+  syncToSharedHistory(id, type, title, poster, season, ep);
+  syncHistoryToApi();
+}
+
+function syncToSharedHistory(id, type, title, poster, season, ep) {
+  try {
+    const raw = localStorage.getItem('simplstream_watch_history');
+    const rows = raw ? JSON.parse(raw) : [];
+    const arr = Array.isArray(rows) ? rows : [];
+    const now = new Date().toISOString();
+    const idx = arr.findIndex(r => r.tmdb_id == id && r.media_type === type);
+    const existing = idx >= 0 ? arr[idx] : null;
+    const row = {
+      id: existing ? existing.id : `lib-${id}-${Date.now()}`,
+      profile_id: existing ? existing.profile_id : 'default',
+      tmdb_id: Number(id),
+      media_type: type,
+      title: title || 'Untitled',
+      poster_path: poster || null,
+      last_watched: now,
+      season: type === 'tv' ? (season || 1) : undefined,
+      episode: type === 'tv' ? (ep || 1) : undefined,
+      source: getActiveSourceId(type),
+      position: existing ? existing.position : 0,
+      duration: existing ? existing.duration : 0,
+      created_at: existing ? existing.created_at : now
+    };
+    if (idx >= 0) arr[idx] = row; else arr.push(row);
+    localStorage.setItem('simplstream_watch_history', JSON.stringify(arr));
+  } catch(e) {}
+}
+
+// ── SYNC WATCH HISTORY TO LAUNCHER API ──
+function syncHistoryToApi() {
+  try {
+    const raw = localStorage.getItem('simplstream_watch_history');
+    if (!raw) return;
+    const url = `${LOCAL_LAUNCHER_BASE}/api/watch-history`;
+    if (navigator.sendBeacon) {
+      const blob = new Blob([raw], { type: 'application/json' });
+      if (navigator.sendBeacon(url, blob)) return;
+    }
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: raw,
+      keepalive: true
+    }).catch(() => {});
+  } catch(e) {}
+}
+
+function isEpWatched(id, season, ep) {
+  const h = getHistory();
+  return !!(h[String(id)]?.watchedEps?.[`${season}-${ep}`]);
+}
+function getProgress(id) {
+  const h = getHistory();
+  const e = h[String(id)];
+  if (!e) return null;
+  return e;
+}
+function isMovieWatched(id) {
+  return !!(getHistory()[String(id)]?.watched);
+}
+
+async function readSharedWatchHistoryRows() {
+  try {
+    const res = await fetch(`${LOCAL_LAUNCHER_BASE}/api/watch-history?t=${Date.now()}`);
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows)) return rows;
+    }
+  } catch(e) {}
+
+  try {
+    const raw = localStorage.getItem('simplstream_watch_history');
+    const rows = raw ? JSON.parse(raw) : [];
+    return Array.isArray(rows) ? rows : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function buildHistoryPlayerUrl(item) {
+  const sourceId = normalizeSourceId(item.source || getActiveSourceId(item.media_type));
+  const isTv = item.media_type === 'tv';
+  const params = new URLSearchParams({
+    id: String(item.tmdb_id),
+    type: isTv ? 'tv' : 'movie',
+    season: String(item.season || 1),
+    episode: String(item.episode || 1),
+    source: sourceId,
+    title: item.title || 'Untitled',
+    poster: item.poster_path || ''
+  });
+  const position = Number(item.position || 0);
+  if (isTv) {
+    params.set('mode', 'replay');
+  } else if (position > 30) {
+    params.set('t', String(Math.floor(position)));
+  }
+  return `/play.html?${params.toString()}`;
+}
+
+function openSharedContinue(index) {
+  const item = sharedContinueItems[index];
+  if (!item) return;
+  window.top.location.href = buildHistoryPlayerUrl(item);
+}
+
+async function renderContinueWatching() {
+  const rows = await readSharedWatchHistoryRows();
+  sharedContinueItems = rows
+    .filter(row => row && row.tmdb_id != null && row.media_type)
+    .sort((a,b) => (Date.parse(b.last_watched) || 0) - (Date.parse(a.last_watched) || 0))
+    .slice(0, 10);
+
+  const section = document.getElementById('continueSection');
+  const row = document.getElementById('continueRow');
+  if (!sharedContinueItems.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  row.innerHTML = sharedContinueItems.map((item, index) => {
+    const title = item.title || 'Untitled';
+    const label = item.media_type === 'tv'
+      ? `S${item.season || 1} E${item.episode || 1}`
+      : 'Movie';
+    const img = item.poster_path ? `<img src="${TMDB_IMG}w185${item.poster_path}" alt="${esc(title)}">` : `<div style="width:110px;height:165px;background:#0d0d0d;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#555;text-align:center;padding:8px">${esc(title)}</div>`;
+    return `<div class="continue-card" onclick="openSharedContinue(${index})">
+      ${img}
+      <div class="c-progress"></div>
+      <div class="c-label">${esc(label)}</div>
+      <div class="c-title">${esc(title)}</div>
+    </div>`;
+  }).join('');
+}
+
+function loadWatchlist() {
+  try {
+    const raw = localStorage.getItem('simplstream_watchlist');
+    if (!raw) return [];
+    const seen = new Set();
+    return JSON.parse(raw).filter(m => {
+      if (m.media_type === 'live') return false;
+      if (seen.has(m.tmdb_id)) return false;
+      seen.add(m.tmdb_id); return true;
+    });
+  } catch(e) { return []; }
+}
+
+function buildFilters() {
+  const bar = document.getElementById('filterBar');
+  bar.innerHTML = '';
+  FILTERS.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (f.key === activeFilter ? ' active' : '');
+    btn.textContent = f.label;
+    btn.onclick = () => { activeFilter = f.key; buildFilters(); applyFilters(); };
+    bar.appendChild(btn);
+  });
+}
+
+function applyFilters() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const f = FILTERS.find(x => x.key === activeFilter);
+  const filtered = allMovies.filter(m => {
+    const t = m.title || '';
+    if (q && !t.toLowerCase().includes(q)) return false;
+    if (f.re && !f.re.test(t)) return false;
+    return true;
+  });
+  renderGrid(filtered);
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderGrid(movies) {
+  const grid = document.getElementById('movieGrid');
+  const empty = document.getElementById('emptyState');
+  document.getElementById('countLabel').textContent = movies.length + ' item' + (movies.length !== 1 ? 's' : '');
+  if (!movies.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = movies.map(m => {
+    const img = m.poster_path
+      ? `<img src="${TMDB_IMG}w342${m.poster_path}" alt="${esc(m.title)}" loading="lazy">`
+      : `<div class="no-poster">${esc(m.title)}</div>`;
+    const badge = m.media_type === 'tv' ? '<div class="tv-badge">TV</div>' : '';
+    const mtype = m.media_type || 'movie';
+    const prog = getProgress(m.tmdb_id);
+    const watchedBadge = mtype === 'movie' && isMovieWatched(m.tmdb_id) ? '<div class="watched-badge">✓</div>' : '';
+    const progressBadge = mtype === 'tv' && prog?.lastSeason ? `<div class="progress-badge">S${prog.lastSeason} E${prog.lastEp}</div>` : '';
+    return `<div class="movie-card" onclick="openDetail(${m.tmdb_id},'${mtype}')">${img}${badge}${watchedBadge}${progressBadge}<div class="card-title">${esc(m.title)}</div></div>`;
+  }).join('');
+}
+
+async function openDetail(id, mediaType) {
+  currentId = id; currentType = mediaType || 'movie';
+  currentSeason = 1; currentEp = 1; currentTrailerKey = null;
+  document.getElementById('detailPage').classList.add('open');
+  document.getElementById('libraryView').style.display = 'none';
+
+  // Reset UI
+  document.getElementById('detailTitle').textContent = 'Loading...';
+  document.getElementById('detailMeta').innerHTML = '';
+  document.getElementById('detailOverview').textContent = '';
+  document.getElementById('detailGenres').innerHTML = '';
+  document.getElementById('castSection').style.display = 'none';
+  document.getElementById('epSection').style.display = 'none';
+  document.getElementById('detailBackdrop').style.backgroundImage = '';
+  document.getElementById('trailerBtn').style.display = 'none';
+
+  const endpoint = mediaType === 'tv'
+    ? `https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&append_to_response=credits,videos`
+    : `https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}&append_to_response=credits,videos`;
+
+  try {
+    const res = await fetch(endpoint);
+    const d = await res.json();
+
+    // Backdrop
+    if (d.backdrop_path) {
+      document.getElementById('detailBackdrop').style.backgroundImage = `url(${TMDB_IMG}w1280${d.backdrop_path})`;
+    }
+
+    // Title
+    const title = d.title || d.name || 'Unknown';
+    document.getElementById('detailTitle').textContent = title;
+
+    // Meta
+    const year = (d.release_date || d.first_air_date || '').slice(0, 4);
+    const rating = d.vote_average ? `★ ${d.vote_average.toFixed(1)}` : '';
+    const runtime = d.runtime ? `${Math.floor(d.runtime/60)}h ${d.runtime%60}m` : (d.number_of_seasons ? `${d.number_of_seasons} Season${d.number_of_seasons>1?'s':''}` : '');
+    document.getElementById('detailMeta').innerHTML =
+      [year, `<span class="rating">${rating}</span>`, runtime].filter(Boolean).join('<span style="color:#333;margin:0 4px">•</span>');
+
+    // Overview
+    document.getElementById('detailOverview').textContent = d.overview || '';
+
+    // Genres
+    document.getElementById('detailGenres').innerHTML = (d.genres||[]).map(g => `<span class="genre-chip">${g.name}</span>`).join('');
+
+    // Play button — resume from last watched if TV
+    if (mediaType === 'tv') {
+      const prog = getProgress(id);
+      if (prog?.lastSeason) {
+        currentSeason = prog.lastSeason; currentEp = prog.lastEp;
+        document.getElementById('playBtn').innerHTML = `▶ Continue S${currentSeason} E${currentEp}`;
+      } else {
+        document.getElementById('playBtn').innerHTML = '▶ Play S1 E1';
+      }
+    } else {
+      document.getElementById('playBtn').innerHTML = '▶ Play';
+    }
+
+    // Trailer
+    const trailer = (d.videos?.results||[]).find(v => v.type === 'Trailer' && v.site === 'YouTube');
+    if (trailer) { currentTrailerKey = trailer.key; document.getElementById('trailerBtn').style.display = ''; }
+
+    // Cast
+    const cast = (d.credits?.cast||[]).slice(0, 12);
+    if (cast.length) {
+      document.getElementById('castSection').style.display = '';
+      document.getElementById('castRow').innerHTML = cast.map(c =>
+        `<div class="cast-card">${c.profile_path ? `<img src="${TMDB_IMG}w92${c.profile_path}" alt="${esc(c.name)}">` : '<div class="cast-no-img">👤</div>'}<div class="cast-name">${esc(c.name)}</div></div>`
+      ).join('');
+    }
+
+    // TV: load seasons/episodes
+    if (mediaType === 'tv') {
+      document.getElementById('epSection').style.display = '';
+      seasonsCache[id] = (d.seasons||[]).filter(s => s.season_number > 0);
+      buildDetailSeasonTabs();
+      await loadDetailEpisodes(id, 1);
+    }
+
+  } catch(e) {
+    document.getElementById('detailTitle').textContent = 'Failed to load';
+  }
+}
+
+function buildDetailSeasonTabs() {
+  const seasons = seasonsCache[currentId] || [];
+  document.getElementById('detailSeasonTabs').innerHTML = seasons.map(s =>
+    `<button class="season-tab${s.season_number === currentSeason ? ' active' : ''}" onclick="selectDetailSeason(${s.season_number})">${s.name}</button>`
+  ).join('');
+}
+
+async function loadDetailEpisodes(id, seasonNum) {
+  document.getElementById('detailEpGrid').innerHTML = '<div style="color:#444;padding:12px">Loading episodes...</div>';
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNum}?api_key=${TMDB_KEY}`);
+    const data = await res.json();
+    document.getElementById('detailEpGrid').innerHTML = (data.episodes||[]).map(ep => {
+      const watched = isEpWatched(currentId, seasonNum, ep.episode_number);
+      const isActive = ep.episode_number === currentEp && seasonNum === currentSeason;
+      return `<div class="ep-card${isActive ? ' active' : ''}${watched ? ' watched' : ''}" onclick="selectDetailEp(${seasonNum},${ep.episode_number},'${String(ep.name).replace(/'/g,"\\'")}',this)">
+        <div class="ep-num">E${ep.episode_number}</div>
+        <div class="ep-info"><div class="ep-name">${esc(ep.name)}</div><div class="ep-desc">${esc(ep.overview||'')}</div></div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('detailEpGrid').innerHTML = '<div style="color:#444;padding:12px">Could not load episodes</div>';
+  }
+}
+
+async function selectDetailSeason(num) {
+  currentSeason = num; currentEp = 1;
+  buildDetailSeasonTabs();
+  await loadDetailEpisodes(currentId, num);
+  document.getElementById('playBtn').innerHTML = `▶ Play S${num} E1`;
+}
+
+function selectDetailEp(season, ep, name, el) {
+  currentSeason = season; currentEp = ep;
+  document.querySelectorAll('.ep-card').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('playBtn').innerHTML = `▶ Play S${season} E${ep}`;
+}
+
+function buildTopLevelPlayerUrl(id, type, season, ep, title, poster) {
+  const sourceId = normalizeSourceId(getActiveSourceId(type));
+  const isTv = type === 'tv';
+  const params = new URLSearchParams({
+    id: String(id),
+    type: isTv ? 'tv' : 'movie',
+    season: String(season || 1),
+    episode: String(ep || 1),
+    source: sourceId,
+    title: title || 'Untitled',
+    poster: poster || ''
+  });
+  if (isTv) params.set('mode', 'replay');
+  return `/play.html?${params.toString()}`;
+}
+
+function startPlay() {
+  const title = document.getElementById('detailTitle').textContent;
+  const movie = allMovies.find(m => m.tmdb_id === currentId);
+  const poster = movie?.poster_path || null;
+  markWatched(currentId, currentType, title, poster, currentSeason, currentEp);
+  window.top.location.href = buildTopLevelPlayerUrl(currentId, currentType, currentSeason, currentEp, title, poster);
+}
+
+function playTrailer() {
+  if (!currentTrailerKey) return;
+  document.getElementById('playerTitle').textContent = document.getElementById('detailTitle').textContent + ' — Trailer';
+  document.getElementById('playerFrame').src = `https://www.youtube.com/embed/${currentTrailerKey}?autoplay=1`;
+  document.getElementById('playerOverlay').classList.add('open');
+}
+
+function closeTrailer() {
+  document.getElementById('playerOverlay').classList.remove('open');
+  document.getElementById('playerFrame').src = '';
+}
+
+function closeDetail() {
+  document.getElementById('detailPage').classList.remove('open');
+  document.getElementById('libraryView').style.display = '';
+  closeTrailer();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('playerOverlay').classList.contains('open')) closeTrailer();
+  else closeDetail();
+});
+
+// Migrate old simplstream_history into shared simplstream_watch_history on first load
+(function migrateOldHistory() {
+  try {
+    const old = JSON.parse(localStorage.getItem('simplstream_history') || '{}');
+    if (!old || typeof old !== 'object') return;
+    const entries = Object.entries(old);
+    if (!entries.length) return;
+    const raw = localStorage.getItem('simplstream_watch_history');
+    const rows = raw ? JSON.parse(raw) : [];
+    const arr = Array.isArray(rows) ? rows : [];
+    const existing = new Set(arr.map(r => r.tmdb_id + ':' + r.media_type));
+    let added = 0;
+    for (const [id, v] of entries) {
+      const type = v.type || 'movie';
+      if (existing.has(Number(id) + ':' + type)) continue;
+      arr.push({
+        id: 'migrated-' + id + '-' + Date.now(),
+        profile_id: 'default',
+        tmdb_id: Number(id),
+        media_type: type,
+        title: v.title || 'Untitled',
+        poster_path: v.poster || null,
+        last_watched: v.lastWatched ? new Date(v.lastWatched).toISOString() : new Date().toISOString(),
+        season: type === 'tv' ? (v.lastSeason || 1) : undefined,
+        episode: type === 'tv' ? (v.lastEp || 1) : undefined,
+        position: 0,
+        duration: 0,
+        created_at: new Date().toISOString()
+      });
+      added++;
+    }
+    if (added) localStorage.setItem('simplstream_watch_history', JSON.stringify(arr));
+  } catch(e) {}
+})();
+
+allMovies = loadWatchlist();
+buildFilters();
+applyFilters();
+renderContinueWatching();
+
+// Playback is handled by play.html. The library page only owns trailer playback.
+
+// ── DEEP-LINK: auto-open from URL params ──
+(async function handleDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const playId = params.get("play");
+  if (!playId) return;
+  const type = params.get("type") || "movie";
+  const season = Number(params.get("season") || "1") || 1;
+  const episode = Number(params.get("episode") || "1") || 1;
+  const source = normalizeSourceId(params.get("source"));
+  const title = params.get("title") || "Untitled";
+  const poster = params.get("poster") || "";
+
+  if (source) setActiveSourceId(source, type);
+  markWatched(Number(playId), type, title, poster, season, episode);
+  window.top.location.href = buildTopLevelPlayerUrl(Number(playId), type, season, episode, title, poster);
+})();
+
+</script>
+<script src="/assets/fullscreen-fix.js?v=20260523145900"></script></body>
+</html>

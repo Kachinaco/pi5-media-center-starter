@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  echo "Run with sudo: sudo tools/install-pi5-media-center" >&2
+  exit 1
+fi
+
+PI_USER=${SUDO_USER:-${PI_HOME_USER:-pi}}
+PI_HOME_DIR=$(getent passwd "$PI_USER" | cut -d: -f6)
+if [[ -z "$PI_HOME_DIR" || ! -d "$PI_HOME_DIR" ]]; then
+  echo "Could not find home directory for user: $PI_USER" >&2
+  exit 1
+fi
+
+SOURCE_ROOT=${PI_HOME_SOURCE_ROOT:-"$PI_HOME_DIR/repos/pi5-media-center"}
+LIVE_ROOT=${PI_HOME_LIVE_ROOT:-"$PI_HOME_DIR/pi-home-live"}
+ARCHIVE_DIR=${PI_HOME_ARCHIVE_DIR:-"$PI_HOME_DIR/pi-home-archives"}
+DATA_DIR=${PI_HOME_DATA_DIR:-"$PI_HOME_DIR/.local/share/pi-home"}
+STATIC_PORT=${PI_HOME_PORT:-8888}
+LAUNCHER_PORT=${PI_HOME_LAUNCHER_PORT:-8899}
+CONFIG_DIR="$PI_HOME_DIR/.config/pi-home"
+ENV_FILE="$CONFIG_DIR/pi-home.env"
+BIN_DIR="$PI_HOME_DIR/bin"
+
+if [[ ! -d "$SOURCE_ROOT" ]]; then
+  echo "Source root not found: $SOURCE_ROOT" >&2
+  echo "Clone this repo there first, or set PI_HOME_SOURCE_ROOT." >&2
+  exit 1
+fi
+
+apt-get update
+apt-get install -y nginx nodejs npm rsync curl git python3
+
+install -d -o "$PI_USER" -g "$PI_USER" "$CONFIG_DIR" "$BIN_DIR" "$LIVE_ROOT" "$ARCHIVE_DIR" "$DATA_DIR"
+
+cat > "$ENV_FILE" <<EOF
+PI_HOME_SOURCE_ROOT=$SOURCE_ROOT
+PI_HOME_LIVE_ROOT=$LIVE_ROOT
+PI_HOME_ARCHIVE_DIR=$ARCHIVE_DIR
+PI_HOME_DATA_DIR=$DATA_DIR
+PI_HOME_PORT=$STATIC_PORT
+PI_HOME_LAUNCHER_PORT=$LAUNCHER_PORT
+PI_HOME_LAUNCHER_HOST=127.0.0.1
+PI_HOME_ALLOWED_ORIGINS=http://127.0.0.1:$STATIC_PORT,http://localhost:$STATIC_PORT
+PI_HOME_WATCH_HISTORY_PATH=$DATA_DIR/watch-history.json
+PI_HOME_BUDGET_DATA_PATH=$DATA_DIR/budget-data.json
+EOF
+chown "$PI_USER:$PI_USER" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+
+ln -sf "$SOURCE_ROOT/tools/pi-home-check" "$BIN_DIR/pi-home-check"
+ln -sf "$SOURCE_ROOT/tools/pi-home-deploy" "$BIN_DIR/pi-home-deploy"
+ln -sf "$SOURCE_ROOT/tools/pi-home-snapshot" "$BIN_DIR/pi-home-snapshot"
+chown -h "$PI_USER:$PI_USER" "$BIN_DIR/pi-home-check" "$BIN_DIR/pi-home-deploy" "$BIN_DIR/pi-home-snapshot"
+chmod +x "$SOURCE_ROOT/tools/"*
+
+cat > /etc/systemd/system/pi-home-launcher.service <<EOF
+[Unit]
+Description=Pi Home launcher API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$PI_USER
+Group=$PI_USER
+EnvironmentFile=$ENV_FILE
+WorkingDirectory=$SOURCE_ROOT
+ExecStart=/usr/bin/node $SOURCE_ROOT/tools/launcher.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/nginx/sites-available/pi-home <<EOF
+server {
+    listen $STATIC_PORT default_server;
+    listen [::]:$STATIC_PORT default_server;
+    server_name _;
+
+    root $LIVE_ROOT;
+    index index.html dashboard.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /launcher/ {
+        proxy_pass http://127.0.0.1:$LAUNCHER_PORT/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/pi-home /etc/nginx/sites-enabled/pi-home
+
+rsync -a --delete \
+  --exclude='.git/' \
+  --exclude='_archive/' \
+  --exclude='backups/' \
+  --exclude='tools/' \
+  --exclude='analytics-config.js' \
+  --exclude='watch-history.json' \
+  --exclude='budget-data.json' \
+  --exclude='assets/slideshow-tv/' \
+  "$SOURCE_ROOT/" "$LIVE_ROOT/"
+rm -f "$LIVE_ROOT/watch-history.json" "$LIVE_ROOT/budget-data.json" "$LIVE_ROOT/analytics-config.js"
+[[ -f "$DATA_DIR/watch-history.json" ]] || printf "[]\n" > "$DATA_DIR/watch-history.json"
+[[ -f "$DATA_DIR/budget-data.json" ]] || printf "{}\n" > "$DATA_DIR/budget-data.json"
+chown -R "$PI_USER:$PI_USER" "$LIVE_ROOT" "$ARCHIVE_DIR" "$DATA_DIR"
+
+systemctl daemon-reload
+systemctl enable --now pi-home-launcher
+nginx -t
+systemctl reload nginx
+
+printf "Pi Home installed.\n"
+printf "Dashboard: http://<pi-address>:%s/dashboard.html\n" "$STATIC_PORT"
+printf "Launcher:  http://<pi-address>:%s/api/status\n" "$LAUNCHER_PORT"

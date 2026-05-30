@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head><title>Adding Star Wars...</title></head>
+<body>
+<h2 id="status">Adding Star Wars movies to watchlist...</h2>
+<script>
+const starWars = [
+  { tmdb_id: 11,     title: "Star Wars: A New Hope", media_type: "movie", poster_path: "/6FfCtAuVAW8XJjZ7eWeLibRLWTw.jpg" },
+  { tmdb_id: 1891,   title: "The Empire Strikes Back", media_type: "movie", poster_path: "/2l05cFWJacyIsTpsqSgH0wQXe4V.jpg" },
+  { tmdb_id: 1892,   title: "Return of the Jedi", media_type: "movie", poster_path: "/mDtzIANMBMqxCdFNiKMGAMT3jQk.jpg" },
+  { tmdb_id: 1893,   title: "Star Wars: The Phantom Menace", media_type: "movie", poster_path: "/6wkfovpn7Eq8dYNKaG5PY3q2oq6.jpg" },
+  { tmdb_id: 1894,   title: "Star Wars: Attack of the Clones", media_type: "movie", poster_path: "/oIfQAB4T4TMbLChgyFgdRCHl4cQ.jpg" },
+  { tmdb_id: 1895,   title: "Star Wars: Revenge of the Sith", media_type: "movie", poster_path: "/xfSAoBEm9MNBjmlNcDYLvLSMlnq.jpg" },
+  { tmdb_id: 140607, title: "Star Wars: The Force Awakens", media_type: "movie", poster_path: "/p247WCQqBGBOq7UMzBnJBYoZTqG.jpg" },
+  { tmdb_id: 181808, title: "Star Wars: The Last Jedi", media_type: "movie", poster_path: "/kOVEVeg59E0wsnXmF9nrh6OmWII.jpg" },
+  { tmdb_id: 181812, title: "Star Wars: The Rise of Skywalker", media_type: "movie", poster_path: "/db32LaOibwEliAmSL2jjDF6oDdj.jpg" },
+  { tmdb_id: 330459, title: "Rogue One: A Star Wars Story", media_type: "movie", poster_path: "/i0ByFNdLCUAlJSmAP3nAFrhy16S.jpg" },
+  { tmdb_id: 348350, title: "Solo: A Star Wars Story", media_type: "movie", poster_path: "/gGZIOlIBuABzawhkgTQyLGsCBMH.jpg" }
+];
+const profilesRaw = localStorage.getItem('simplstream_profiles');
+const profiles = profilesRaw ? JSON.parse(profilesRaw) : [];
+const profileId = profiles.length > 0 ? profiles[0].id : 'default';
+const existing = JSON.parse(localStorage.getItem('simplstream_watchlist') || '[]');
+const existingIds = new Set(existing.map(e => e.tmdb_id));
+let added = 0;
+const newEntries = [...existing];
+starWars.forEach(movie => {
+  if (!existingIds.has(movie.tmdb_id)) {
+    newEntries.push({ id: Date.now()+'-'+Math.random().toString(36).substr(2,9), profile_id: profileId, tmdb_id: movie.tmdb_id, media_type: movie.media_type, title: movie.title, poster_path: movie.poster_path, created_at: new Date().toISOString() });
+    added++;
+  }
+});
+localStorage.setItem('simplstream_watchlist', JSON.stringify(newEntries));
+document.getElementById('status').innerHTML = 'Done! Added '+added+' Star Wars movies. <a href="http://localhost:8888">Go to SimplStream</a>';
+</script>
+
+<!-- Floating Home Button -->
+
+</body>
+</html>

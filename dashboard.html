@@ -1,0 +1,3659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pi Home</title>
+  <script>
+    (function () {
+      try {
+        var isPhone = window.matchMedia("(max-width: 760px)").matches;
+        if (isPhone) document.documentElement.classList.add("mobile-layout");
+      } catch (error) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/dashboard.css?v=20260529-compact-hero">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Critical inline: vars + body bg for instant paint, rest in dashboard.css -->
+  <style>
+    :root {
+      --bg: #f6f8fe;
+      --bg-2: #ffffff;
+      --panel: rgba(255, 255, 255, 0.86);
+      --panel-2: rgba(248, 251, 255, 0.94);
+      --line: rgba(125, 145, 180, 0.18);
+      --line-strong: rgba(107, 128, 166, 0.26);
+      --text: #172033;
+      --muted: #6e7d98;
+      --blue: #2f80ff;
+      --cyan: #52b6ff;
+      --purple: #b26dff;
+      --pink: #ff82d1;
+      --lime: #3fc77a;
+      --red: #ef6b73;
+      --amber: #f5a524;
+      --shadow: 0 24px 64px rgba(133, 152, 185, 0.18);
+      --shadow-soft: 0 12px 28px rgba(133, 152, 185, 0.12);
+      --theme-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 247, 255, 0.94));
+      --theme-chip-border: rgba(73, 140, 255, 0.18);
+      --theme-chip-text: var(--text);
+      --theme-chip-active-bg: linear-gradient(135deg, rgba(47, 128, 255, 0.96), rgba(82, 182, 255, 0.94));
+      --theme-chip-active-text: #ffffff;
+      --theme-chip-active-border: transparent;
+    }
+
+    body[data-theme="dark"] {
+      --bg: #232136;
+      --bg-2: #2a273f;
+      --panel: rgba(42, 39, 63, 0.9);
+      --panel-2: rgba(57, 53, 82, 0.94);
+      --line: rgba(144, 140, 170, 0.18);
+      --line-strong: rgba(156, 207, 216, 0.24);
+      --text: #e0def4;
+      --muted: #908caa;
+      --blue: #ea9a97;
+      --cyan: #9ccfd8;
+      --purple: #c4a7e7;
+      --pink: #eb6f92;
+      --lime: #9ccfd8;
+      --red: #eb6f92;
+      --amber: #f6c177;
+      --shadow: 0 28px 72px rgba(13, 11, 26, 0.46);
+      --shadow-soft: 0 14px 34px rgba(13, 11, 26, 0.3);
+      --theme-chip-bg: linear-gradient(180deg, rgba(57, 53, 82, 0.96), rgba(42, 39, 63, 0.96));
+      --theme-chip-border: rgba(234, 154, 151, 0.22);
+      --theme-chip-text: #e0def4;
+      --theme-chip-active-bg: linear-gradient(135deg, rgba(234, 154, 151, 0.96), rgba(235, 111, 146, 0.92));
+      --theme-chip-active-text: #1f1d2e;
+      --theme-chip-active-border: rgba(246, 193, 119, 0.34);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    *::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(125, 194, 255, 0.26), transparent 28%),
+        radial-gradient(circle at top right, rgba(255, 151, 212, 0.28), transparent 32%),
+        radial-gradient(circle at 50% 100%, rgba(172, 225, 255, 0.18), transparent 26%),
+        linear-gradient(180deg, #fbfcff 0%, #f4f7ff 52%, #eef3ff 100%);
+      padding: 24px;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      width: 34vw;
+      height: 34vw;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0.45;
+      z-index: 0;
+      background: radial-gradient(circle at center, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0));
+    }
+
+    body::before {
+      top: -10vw;
+      right: -6vw;
+    }
+
+    body::after {
+      bottom: -14vw;
+      left: -8vw;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 16px;
+      max-width: 1840px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .panel {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.92));
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 18px 20px;
+      min-height: 208px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(247, 251, 255, 0.9)),
+        radial-gradient(circle at top left, rgba(104, 186, 255, 0.2), transparent 38%),
+        radial-gradient(circle at top right, rgba(255, 141, 211, 0.18), transparent 34%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-main::before {
+      content: "";
+      position: absolute;
+      inset: 18px 18px auto auto;
+      width: 240px;
+      height: 120px;
+      border-radius: 999px;
+      background: radial-gradient(circle at center, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
+      opacity: 0.75;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero-main::after {
+      content: "";
+      position: absolute;
+      inset: auto 28px 24px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 36px;
+      background:
+        linear-gradient(160deg, rgba(85, 170, 255, 0.18), rgba(255, 145, 214, 0.14));
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero-main > div {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .eyebrow {
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .headline {
+      margin-top: 4px;
+      display: grid;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .hero-copy {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
+      gap: 14px;
+      flex: 1;
+      min-width: 0;
+      align-items: stretch;
+    }
+
+    .hero-intro {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+
+    .hero-intro-copy {
+      display: grid;
+      gap: 10px;
+    }
+
+    .headline h1 {
+      font-size: clamp(38px, 3vw, 54px);
+      line-height: 0.96;
+      letter-spacing: -0.05em;
+      max-width: 720px;
+      font-weight: 700;
+    }
+
+    .hero-greeting-row {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .hero-date-inline {
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .headline p {
+      margin-top: 0;
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 520px;
+      line-height: 1.3;
+    }
+
+    .hero-actions-shell {
+      display: grid;
+      gap: 8px;
+      padding: 9px 10px;
+      border-radius: 24px;
+      border: 1px solid rgba(116, 138, 174, 0.12);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(245, 249, 255, 0.56));
+      box-shadow: var(--shadow-soft);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .hero-actions .pill {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(243, 248, 255, 0.92));
+      color: #5570a0;
+      font-size: 12px;
+      padding: 7px 10px;
+    }
+
+    .layout-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .theme-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px;
+      border-radius: 999px;
+      border: 1px solid var(--theme-chip-border);
+      background: var(--theme-chip-bg);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .theme-option {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--theme-chip-text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      min-height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    }
+
+    .theme-option:hover {
+      transform: translateY(-1px);
+    }
+
+    .theme-option.active {
+      background: var(--theme-chip-active-bg);
+      color: var(--theme-chip-active-text);
+      border-color: var(--theme-chip-active-border);
+    }
+
+    .layout-toggle,
+    .layout-reset {
+      appearance: none;
+      border: 1px solid rgba(73, 140, 255, 0.18);
+      border-radius: 999px;
+      padding: 9px 14px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 247, 255, 0.94));
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow-soft);
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+
+    .layout-toggle:hover,
+    .layout-reset:hover {
+      border-color: rgba(73, 140, 255, 0.28);
+      box-shadow: 0 16px 28px rgba(130, 150, 184, 0.16);
+      transform: translateY(-1px);
+    }
+
+    .layout-toggle.active {
+      background: linear-gradient(135deg, rgba(47, 128, 255, 0.96), rgba(82, 182, 255, 0.94));
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .layout-toggle {
+      min-width: 142px;
+      min-height: 36px;
+      font-size: 13px;
+    }
+
+    .layout-reset {
+      min-height: 36px;
+      font-size: 13px;
+    }
+
+    .layout-status {
+      margin-top: 0;
+      color: #4f6487;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .hero-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 14px;
+    }
+
+    .hero-section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      max-width: 280px;
+      text-align: right;
+    }
+
+    .hero-launch-block {
+      display: grid;
+      gap: 10px;
+    }
+
+    .sortable-item {
+      position: relative;
+    }
+
+    .drag-handle {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 5;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-width: 64px;
+      min-height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(19, 31, 53, 0.88);
+      color: #f4f7ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      pointer-events: none;
+      box-shadow: 0 10px 24px rgba(17, 27, 44, 0.24);
+    }
+
+    body.layout-edit-mode [data-sort-id] {
+      cursor: grab;
+      box-shadow: 0 0 0 2px rgba(47, 128, 255, 0.14), var(--shadow-soft);
+    }
+
+    body.layout-edit-mode .drag-handle {
+      display: inline-flex;
+    }
+
+    body.layout-edit-mode [data-sort-id]:active {
+      cursor: grabbing;
+    }
+
+    body.layout-edit-mode [data-sort-id].dragging {
+      opacity: 0.38;
+    }
+
+    .drag-placeholder {
+      min-height: 88px;
+      border-radius: 24px;
+      border: 2px dashed rgba(47, 128, 255, 0.42);
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          rgba(47, 128, 255, 0.1),
+          rgba(47, 128, 255, 0.1) 12px,
+          rgba(47, 128, 255, 0.04) 12px,
+          rgba(47, 128, 255, 0.04) 24px
+        );
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38);
+    }
+
+    body.layout-edit-mode .stack[data-sort-id] {
+      padding: 10px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.32);
+      border: 2px dashed rgba(47, 128, 255, 0.18);
+    }
+
+    body.layout-edit-mode .main[data-sort-id],
+    body.layout-edit-mode .section[data-sort-id] {
+      position: relative;
+    }
+
+    .hero-quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .hero-shortcut {
+      min-height: 56px;
+      border-radius: 24px;
+      border: 1px solid rgba(116, 138, 174, 0.14);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 248, 255, 0.9));
+      color: #415473;
+      padding: 10px 12px;
+      display: grid;
+      align-content: center;
+      gap: 5px;
+      text-decoration: none;
+      box-shadow: var(--shadow-soft);
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+
+    .hero-shortcut:hover {
+      border-color: rgba(73, 140, 255, 0.22);
+      box-shadow: 0 16px 28px rgba(130, 150, 184, 0.16);
+      transform: translateY(-1px);
+    }
+
+    .hero-shortcut-label {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .hero-shortcut-meta {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+
+    .hero-shortcut.primary {
+      background:
+        linear-gradient(135deg, rgba(58, 128, 255, 0.18), rgba(255, 147, 213, 0.14)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(243, 248, 255, 0.94));
+    }
+
+    .hero-summary-card {
+      border-radius: 26px;
+      border: 1px solid rgba(116, 138, 174, 0.14);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(242, 247, 255, 0.68)),
+        radial-gradient(circle at top left, rgba(82, 182, 255, 0.08), transparent 38%);
+      padding: 11px 14px;
+      display: grid;
+      gap: 6px;
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-summary-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: linear-gradient(180deg, rgba(82, 182, 255, 0.8), rgba(255, 145, 214, 0.72));
+      opacity: 0.9;
+    }
+
+    .hero-summary-card p {
+      max-width: none;
+      font-size: 14px;
+      color: #536683;
+      line-height: 1.3;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-month {
+      width: 100%;
+      padding: 11px;
+      border-radius: 28px;
+      border: 1px solid rgba(116, 138, 174, 0.16);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(243, 247, 255, 0.9));
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 8px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    }
+
+    .hero-month-head {
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .hero-month-title {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+
+    .month-weekdays,
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 4px;
+      grid-auto-rows: 1fr;
+    }
+
+    .month-weekdays span {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .month-day {
+      position: relative;
+      min-height: 0;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      background: rgba(255, 255, 255, 0.68);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .month-day.muted {
+      color: rgba(110, 125, 152, 0.58);
+      background: rgba(243, 246, 253, 0.88);
+    }
+
+    .month-day.today {
+      background: linear-gradient(135deg, rgba(64, 138, 255, 0.94), rgba(105, 188, 255, 0.88));
+      border-color: rgba(64, 138, 255, 0.4);
+      color: #ffffff;
+      font-weight: 700;
+      box-shadow: 0 16px 28px rgba(79, 149, 255, 0.24);
+    }
+
+    .month-day.has-event::after {
+      content: "";
+      position: absolute;
+      bottom: 6px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--amber);
+    }
+
+    .clock-wrap {
+      text-align: right;
+      min-width: 190px;
+      flex-shrink: 0;
+    }
+
+    .clock-time {
+      font-size: clamp(50px, 3.7vw, 68px);
+      line-height: 0.9;
+      letter-spacing: -0.05em;
+      font-weight: 300;
+      white-space: nowrap;
+    }
+
+    .clock-date {
+      color: var(--muted);
+      font-size: 16px;
+      margin-top: 4px;
+    }
+
+    .system-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .pill {
+      border: 1px solid rgba(107, 128, 166, 0.16);
+      background: rgba(255, 255, 255, 0.82);
+      color: #4f607b;
+      border-radius: 999px;
+      padding: 10px 15px;
+      font-size: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .system-meta .pill {
+      background: rgba(248, 250, 255, 0.92);
+    }
+
+    .hero-side {
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.92));
+    }
+    /* Component styles in dashboard.css */
+  </style>
+  <style>/* placeholder - removed 2100+ lines of component CSS, now in dashboard.css */</style>
+<link rel="stylesheet" href="/assets/fullscreen-fix.css?v=20260510141232">
+  <style id="dashboard-compact-hero-override">
+    .hero { align-items: start !important; }
+    .hero > .hero-main, .hero > .hero-side { align-self: start !important; }
+    .month-weekdays, .month-grid { gap: 4px !important; grid-auto-rows: 42px !important; }
+    .month-day { min-height: 42px !important; aspect-ratio: auto !important; font-size: 14px !important; }
+    .hero-month { gap: 8px !important; padding: 10px 12px !important; width: 100% !important; }
+    .calendar-item { padding: 7px 9px !important; }
+    .hero-copy { grid-template-rows: auto !important; align-items: start !important; gap: 12px !important; }
+    .hero-intro, .hero-launch-block { gap: 8px !important; align-content: start !important; }
+    .hero-summary-card { display: none !important; }
+    .hero-actions-shell { padding: 6px 8px !important; gap: 4px !important; }
+    .hero-shortcut { min-height: 46px !important; padding: 8px 10px !important; border-radius: 14px !important; gap: 2px !important; }
+    .hero-shortcut-label { font-size: 14px !important; }
+    .hero-shortcut-meta { display: none !important; }
+    .hero-side { gap: 10px !important; padding: 14px !important; }
+    .weather-top { gap: 6px !important; }
+    .weather-top-grid { gap: 8px !important; }
+    .weather-inline { padding: 8px 10px !important; border-radius: 14px !important; }
+    .weather-temp { font-size: 36px !important; letter-spacing: 0 !important; }
+    .weather-detail-card { padding: 7px 9px !important; border-radius: 12px !important; gap: 2px !important; }
+
+    /* Redesigned Weather Radar Card & Map */
+    .weather-radar-card {
+      padding: 10px !important;
+      border-radius: 16px !important;
+      background: var(--panel) !important;
+      border: 1px solid var(--line-strong) !important;
+      box-shadow: var(--shadow) !important;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    .weather-radar-card:hover {
+      border-color: rgba(73, 140, 255, 0.3) !important;
+      box-shadow: 0 16px 36px rgba(116, 138, 174, 0.18) !important;
+    }
+    body[data-theme="dark"] .weather-radar-card:hover {
+      border-color: rgba(234, 154, 151, 0.3) !important;
+      box-shadow: 0 20px 48px rgba(13, 11, 26, 0.5) !important;
+    }
+    .radar-map {
+      height: 340px !important;
+      border-radius: 12px !important;
+      border: 1px solid var(--line) !important;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+    }
+    .radar-actions {
+      display: flex !important;
+      gap: 6px !important;
+      margin-top: 6px !important;
+    }
+    .radar-actions button {
+      flex: 1;
+      min-height: 30px !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      border-radius: 8px !important;
+      border: 1px solid rgba(73, 140, 255, 0.16) !important;
+      background: rgba(73, 140, 255, 0.05) !important;
+      color: var(--blue) !important;
+      transition: all 0.2s ease !important;
+      cursor: pointer;
+    }
+    .radar-actions button:hover {
+      background: rgba(73, 140, 255, 0.12) !important;
+      border-color: rgba(73, 140, 255, 0.3) !important;
+      transform: translateY(-1px);
+    }
+    body[data-theme="dark"] .radar-actions button {
+      border: 1px solid rgba(234, 154, 151, 0.16) !important;
+      background: rgba(234, 154, 151, 0.05) !important;
+      color: var(--blue) !important;
+    }
+    body[data-theme="dark"] .radar-actions button:hover {
+      background: rgba(234, 154, 151, 0.12) !important;
+      border-color: rgba(234, 154, 151, 0.3) !important;
+    }
+    .radar-status { display: none !important; }
+
+    /* Redesigned Calendar and Upcoming Events Layout */
+    .hero-calendar-side {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 12px !important;
+      width: 100% !important;
+    }
+    .calendar-panel {
+      padding: 10px !important;
+      border-radius: 16px !important;
+      background: var(--panel) !important;
+      border: 1px solid var(--line-strong) !important;
+      box-shadow: var(--shadow) !important;
+    }
+    .calendar-list { gap: 6px !important; }
+    .calendar-item {
+      padding: 7px 10px !important;
+      border-radius: 10px !important;
+      background: rgba(255, 255, 255, 0.45) !important;
+      border: 1px solid rgba(116, 138, 174, 0.08) !important;
+      transition: all 0.2s ease !important;
+    }
+    body[data-theme="dark"] .calendar-item {
+      background: rgba(17, 16, 26, 0.22) !important;
+      border: 1px solid rgba(232, 228, 255, 0.06) !important;
+    }
+    .calendar-item:hover {
+      background: rgba(255, 255, 255, 0.75) !important;
+      border-color: rgba(73, 140, 255, 0.18) !important;
+      transform: translateY(-1px);
+    }
+    body[data-theme="dark"] .calendar-item:hover {
+      background: rgba(17, 16, 26, 0.38) !important;
+      border-color: rgba(234, 154, 151, 0.28) !important;
+    }
+    .calendar-item strong { font-size: 13px !important; letter-spacing: 0 !important; }
+  </style>
+</head>
+<body>
+  <script>
+    (function () {
+      function applyMobileLayout() {
+        var isMobile = false;
+        try {
+          isMobile = window.matchMedia("(max-width: 760px)").matches;
+        } catch (error) {
+          isMobile = window.innerWidth <= 760;
+        }
+        document.body.classList.toggle("mobile-layout", isMobile);
+      }
+      applyMobileLayout();
+      window.addEventListener("resize", applyMobileLayout, { passive: true });
+      function keepHeroColumnsTogether() {
+        var hero = document.querySelector(".hero");
+        var side = document.querySelector(".hero-side");
+        if (hero && side && side.parentElement !== hero) {
+          hero.appendChild(side);
+        }
+      }
+      document.addEventListener("DOMContentLoaded", keepHeroColumnsTogether);
+      window.addEventListener("load", keepHeroColumnsTogether, { passive: true });
+    })();
+  </script>
+  <div class="shell">
+        <section class="hero">
+      <div class="hero-main panel">
+        <div>
+          <div class="hero-top">
+            <div class="eyebrow">Raspberry Pi 5</div>
+          </div>
+          <div class="headline">
+            <div class="hero-copy">
+              <div class="hero-intro">
+                <div class="hero-intro-copy">
+                  <div class="hero-greeting-row">
+                    <h1 id="hero-greeting">Good evening.</h1>
+                    <div class="hero-date-inline" id="hero-date-inline">Loading date</div>
+                  </div>
+                  <p>Open apps fast, keep the normal desktop underneath, and see Pi status at a glance.</p>
+                </div>
+                <div class="hero-actions-shell">
+                  <div class="hero-actions">
+                    <div class="pill">TV dashboard</div>
+                    <div class="pill">Local control</div>
+                    <div class="pill">Fast launch</div>
+                    <div class="theme-switch" aria-label="Theme">
+                      <button id="theme-light-btn" class="theme-option" type="button" onclick="setTheme('light')">Light</button>
+                      <button id="theme-dark-btn" class="theme-option" type="button" onclick="setTheme('dark')">Dark</button>
+                    </div>
+                    <div class="layout-controls">
+                      <button id="layout-mode-toggle" class="layout-toggle" type="button" onclick="toggleLayoutMode()">Arrange boxes</button>
+                      <button id="layout-reset" class="layout-reset" type="button" onclick="resetLayout()" hidden>Reset layout</button>
+                    </div>
+                  </div>
+                  <div class="layout-status" id="layout-status" hidden>Arrange mode is on. You can drag cards, sections, and main columns. Put them where you want, then press Done arranging.</div>
+                </div>
+                <div class="hero-launch-block">
+                  <div class="hero-section-head">
+                    <div class="subtle">Quick launch</div>
+                    <p>Jump into the things you open most without leaving Pi Home.</p>
+                  </div>
+                  <div class="hero-quick-grid" data-sort-key="hero-shortcuts">
+                    <a class="hero-shortcut primary" data-sort-id="hero-simplstream" href="/" onclick="openSimplStream(); return false;">
+                      <div class="hero-shortcut-label">Open SimplStream</div>
+                      <div class="hero-shortcut-meta">Opens full-screen without the Pi Home iframe sandbox.</div>
+                    </a>
+                    <a class="hero-shortcut" data-sort-id="hero-nhl" href="https://sportsurge.ws/watch/" onclick="window.top.location.href='https://sportsurge.ws/watch/'; return false;">
+                      <div class="hero-shortcut-label">NHL Live</div>
+                      <div class="hero-shortcut-meta">Open SportsSurge for hockey.</div>
+                    </a>
+                    <a class="hero-shortcut" data-sort-id="hero-stickstreams" href="https://stickstreams.com" onclick="window.top.location.href='https://stickstreams.com'; return false;">
+                      <div class="hero-shortcut-label">StickStreams</div>
+                      <div class="hero-shortcut-meta">Alternate NHL stream option.</div>
+                    </a>
+                    <a class="hero-shortcut" data-sort-id="hero-youtube" href="#" onclick="openYouTubeDesktop(); return false;">
+                      <div class="hero-shortcut-label">YouTube</div>
+                      <div class="hero-shortcut-meta">Open YouTube in Chromium desktop mode.</div>
+                    </a>
+                    <a class="hero-shortcut" data-sort-id="hero-pokemmo" href="#" onclick="launchPokeMMO(); return false;">
+                      <div class="hero-shortcut-label">PokeMMO</div>
+                      <div class="hero-shortcut-meta">Launch the game directly on the Pi display.</div>
+                    </a>
+                    <a class="hero-shortcut" data-sort-id="hero-budget" href="#" onclick="openOverlay('/budget.html', 'Budget Board'); return false;">
+                      <div class="hero-shortcut-label">Budget Board</div>
+                      <div class="hero-shortcut-meta">Open the household plan and the latest business ledger snapshot.</div>
+                    </a>
+                  </div>
+                </div>
+                <div class="hero-summary-card">
+                  <div class="subtle">Front Door</div>
+                  <p>Pi Home keeps media, calendar, network devices, launch controls, and budget visibility in one clean place so the TV feels more like a console than a browser tab.</p>
+                </div>
+              </div>
+              <div class="hero-calendar-side">
+                <div class="calendar-panel">
+                  <div class="calendar-head">
+                    <div>
+                      <h2>Upcoming</h2>
+                    </div>
+                    <button id="calendar-connect" class="connect-btn" onclick="startCalendarAuth()" hidden>Connect</button>
+                  </div>
+                  <div id="calendar-status" class="calendar-status">Checking Google Calendar...</div>
+                  <div id="calendar-list" class="calendar-list" data-sort-key="calendar-events"></div>
+                </div>
+                <div class="hero-month">
+                  <div class="hero-month-head">
+                    <div class="hero-month-title" id="month-title">Loading month</div>
+                  </div>
+                  <div class="month-weekdays">
+                    <span>Sun</span>
+                    <span>Mon</span>
+                    <span>Tue</span>
+                    <span>Wed</span>
+                    <span>Thu</span>
+                    <span>Fri</span>
+                    <span>Sat</span>
+                  </div>
+                  <div class="month-grid" id="month-grid"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="hero-side panel">
+        <div class="weather-top">
+          <div class="weather-location-block">
+            <div class="subtle">Weather</div>
+            <div class="weather-location-row">
+              <h2>Local Weather</h2>
+              <div class="weather-updated-pill subtle" id="weather-updated">Updating</div>
+            </div>
+          </div>
+          <div class="weather-top-grid">
+            <div class="weather-inline">
+              <div class="weather-temp" id="weather-temp">--</div>
+              <div class="weather-inline-copy">
+                <div class="weather-desc" id="weather-desc">Loading current conditions</div>
+              </div>
+              <div class="weather-condition compact">
+                <div>
+                  <div class="weather-icon" id="weather-icon">--</div>
+                  <div class="weather-condition-label" id="weather-condition-label">Condition</div>
+                </div>
+              </div>
+            </div>
+            <div class="weather-side-meta">
+              <div class="clock-wrap weather-clock">
+                <div class="clock-time" id="clock-time">--:--</div>
+                <div class="clock-date" id="clock-date">Loading date</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="weather-detail-grid" data-sort-key="weather-details">
+          <div class="weather-detail-card" data-sort-id="weather-feels-like">
+            <div class="label">Feels like</div>
+            <div class="value" id="weather-feels-like">--</div>
+            <div class="note">Outdoor comfort</div>
+          </div>
+          <div class="weather-detail-card" data-sort-id="weather-humidity">
+            <div class="label">Humidity</div>
+            <div class="value" id="weather-humidity">--</div>
+            <div class="note">Current moisture</div>
+          </div>
+          <div class="weather-detail-card" data-sort-id="weather-wind">
+            <div class="label">Wind</div>
+            <div class="value" id="weather-wind">--</div>
+            <div class="note">Breeze speed</div>
+          </div>
+        </div>
+        <div class="weather-radar-card">
+          <div class="radar-head">
+            <div>
+              <div class="label">Radar</div>
+              <h3>Live precipitation</h3>
+            </div>
+            <div class="radar-time" id="radar-time">Loading</div>
+          </div>
+          <div class="radar-map" id="mesa-radar-map" role="img" aria-label="Live radar map"></div>
+          <div class="radar-actions">
+            <button type="button" id="radar-playback-toggle" onclick="toggleRadarAnimation()">Pause</button>
+            <button type="button" onclick="refreshRadarMap(true)">Refresh</button>
+            <button type="button" onclick="openWeatherRadar()">Weather.com</button>
+          </div>
+          <div class="radar-status" id="radar-status">Loading radar loop</div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="ticker-strip panel">
+      <div class="ticker-label">Coming up</div>
+      <div class="ticker-window">
+        <div id="calendar-ticker-track" class="ticker-track">
+          <span class="ticker-item">Checking calendar...</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout-board" data-sort-key="layout-sections">
+    <section class="section panel continue-section-wide" data-sort-id="layout-continue" data-handle-label="Section">
+      <div class="widget-head">
+        <div>
+          <div class="subtle">Recent</div>
+          <h2>Recently Watched</h2>
+        </div>
+        <p>Picks up where you left off in SimplStream.</p>
+      </div>
+      <div id="continue-grid" class="continue-grid" data-sort-key="continue-grid"></div>
+    </section>
+
+    <section class="main" data-sort-id="layout-main" data-handle-label="Section" data-sort-key="main-columns">
+      <div class="stack" data-sort-id="column-left" data-handle-label="Column" data-sort-key="main-left-sections">
+        <section class="section panel" data-sort-id="section-tools" data-handle-label="Section">
+          <div class="widget-head">
+            <div>
+              <div class="subtle">Utilities</div>
+              <h2>Tools</h2>
+            </div>
+            <p>Local utilities, service panels, and exit controls in one place.</p>
+          </div>
+          <div class="tools-grid" data-sort-key="tools-grid">
+            <a class="tool-card utility" data-sort-id="tool-glance" data-service-name="Glance" href="#" onclick="openExternal('http://localhost:8090', 'Glance'); return false;">
+              <div class="tool-top">
+                <div class="brand"><span class="brand-text">GL</span></div>
+                <div class="pill">Legacy</div>
+              </div>
+              <div class="tool-card-copy">
+                <h3>Glance</h3>
+                <p data-tool-detail>Still available, just not the main front door.</p>
+              </div>
+              <div class="tool-status" data-tool-status>
+                <div class="status-dot"></div>
+                <span>Checking service</span>
+              </div>
+              <div class="action-meta">Open utility</div>
+            </a>
+
+            <a class="tool-card utility" data-sort-id="tool-adguard" data-service-name="AdGuard Home" href="#" onclick="openExternal('http://localhost:6060/login.html', 'AdGuard Home'); return false;">
+              <div class="tool-top">
+                <div class="brand"><span class="brand-text">DNS</span></div>
+                <div class="pill">Network</div>
+              </div>
+              <div class="tool-card-copy">
+                <h3>AdGuard Home</h3>
+                <p data-tool-detail>DNS and network filtering controls.</p>
+              </div>
+              <div class="tool-status" data-tool-status>
+                <div class="status-dot"></div>
+                <span>Checking service</span>
+              </div>
+              <div class="action-meta">Open console</div>
+            </a>
+
+            <a class="tool-card service" data-sort-id="tool-launcher-api" data-service-name="Launcher API" href="#" onclick="openExternal('http://localhost:8899/health', 'Launcher API'); return false;">
+              <div class="tool-top">
+                <div class="brand"><span class="brand-text">API</span></div>
+                <div class="pill">System</div>
+              </div>
+              <div class="tool-card-copy">
+                <h3>Launcher API</h3>
+                <p data-tool-detail>Local control plane for dashboard actions and utilities.</p>
+              </div>
+              <div class="tool-status" data-tool-status>
+                <div class="status-dot"></div>
+                <span>Checking service</span>
+              </div>
+              <div class="action-meta">Open status</div>
+            </a>
+
+            <a class="tool-card exit" data-sort-id="tool-desktop" href="#" onclick="returnToDesktop(); return false;">
+              <div class="tool-top">
+                <div class="brand"><span class="brand-text">DESK</span></div>
+                <div class="pill">Exit</div>
+              </div>
+              <div class="tool-card-copy">
+                <h3>Return to Desktop</h3>
+                <p data-tool-detail>Close Chromium and return to the normal desktop.</p>
+              </div>
+              <div class="tool-status">
+                <div class="status-dot online"></div>
+                <span>Local action</span>
+              </div>
+              <div class="action-meta">Leave kiosk</div>
+            </a>
+          </div>
+          <div class="message" id="action-message"></div>
+        </section>
+      </div>
+
+      <div class="stack" data-sort-id="column-right" data-handle-label="Column" data-sort-key="main-right-sections">
+        <section class="section panel" data-sort-id="section-system" data-handle-label="Section">
+          <div class="widget-head">
+            <div>
+              <div class="subtle">Pi health</div>
+              <h2>System</h2>
+            </div>
+            <p>Live from the local launcher service.</p>
+          </div>
+          <div class="stats-grid" data-sort-key="stats-primary">
+            <div class="stat" data-sort-id="stat-temp">
+              <div class="label">CPU temp</div>
+              <div class="value" id="stat-temp">--</div>
+              <div class="note">Read from the Pi thermal zone.</div>
+            </div>
+            <div class="stat" data-sort-id="stat-memory">
+              <div class="label">Memory</div>
+              <div class="value" id="stat-memory">--</div>
+              <div class="note" id="stat-memory-note">Loading</div>
+            </div>
+            <div class="stat" data-sort-id="stat-disk">
+              <div class="label">Disk</div>
+              <div class="value" id="stat-disk">--</div>
+              <div class="note" id="stat-disk-note">Loading</div>
+            </div>
+            <div class="stat" data-sort-id="stat-launcher">
+              <div class="label">Launcher API</div>
+              <div class="value" id="stat-launcher">Checking</div>
+              <div class="note">Local control plane for dashboard actions.</div>
+            </div>
+          </div>
+          <div class="stats-grid secondary" data-sort-key="stats-secondary">
+            <div class="stat" data-sort-id="stat-host">
+              <div class="label">Host</div>
+              <div class="value" id="stat-host">--</div>
+              <div class="note">Current Raspberry Pi hostname.</div>
+            </div>
+            <div class="stat" data-sort-id="stat-ip">
+              <div class="label">Tailscale</div>
+              <div class="value" id="stat-ip">--</div>
+              <div class="note">Private remote access address.</div>
+            </div>
+            <div class="stat" data-sort-id="stat-uptime">
+              <div class="label">Uptime</div>
+              <div class="value" id="stat-uptime">--</div>
+              <div class="note">Time since the last reboot.</div>
+            </div>
+            <div class="stat" data-sort-id="stat-load">
+              <div class="label">Load</div>
+              <div class="value" id="stat-load">--</div>
+              <div class="note">1, 5, and 15 minute averages.</div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </section>
+
+    <section class="section panel google-accounts-section" data-sort-id="layout-google" data-handle-label="Section">
+      <div class="widget-head google-widget-head">
+        <div class="google-widget-copy">
+          <img class="google-mark" src="/logos/google-g.png" alt="Google">
+          <div>
+            <div class="subtle">Google</div>
+            <h2>GOG Accounts</h2>
+          </div>
+        </div>
+        <p id="google-accounts-summary">Checking Google account status.</p>
+      </div>
+      <div id="google-accounts-list" class="google-accounts-list" data-sort-key="google-accounts">
+        <div class="empty">Checking Google account connections...</div>
+      </div>
+    </section>
+
+    <section class="section panel network-section" data-sort-id="layout-network" data-handle-label="Section">
+      <div class="widget-head">
+        <div>
+          <div class="subtle">Network</div>
+          <h2>Devices</h2>
+        </div>
+        <p>AdGuard DHCP inventory plus live reachability from the Pi.</p>
+      </div>
+      <div class="network-summary">
+        <div class="pill" id="network-count">Devices: --</div>
+        <div class="pill" id="network-online">Online: --</div>
+        <div class="pill" id="network-updated">Updated: --</div>
+      </div>
+      <div id="network-grid" class="network-grid" data-sort-key="network-grid"></div>
+    </section>
+
+    <section class="section panel" data-sort-id="layout-budget" data-handle-label="Section">
+      <div class="widget-head">
+        <div>
+          <div class="subtle">Budget</div>
+          <h2>Money Board</h2>
+        </div>
+        <div style="display:grid;justify-items:end;gap:6px;">
+          <button class="layout-reset" type="button" style="display:inline-flex;" onclick="openOverlay('/budget.html', 'Budget Board')">Open budget board</button>
+          <div id="budget-preview-updated" style="font-size:12px;color:var(--muted);">Loading budget...</div>
+        </div>
+      </div>
+      <div id="budget-preview-copy" style="margin-top:-6px;margin-bottom:12px;color:var(--muted);font-size:14px;line-height:1.4;">Loading the household plan and the latest imported ledger.</div>
+      <div id="budget-preview-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
+        <div class="stat"><div class="label">Take-Home</div><div class="value" id="budget-stat-income">--</div><div class="note">Monthly base</div></div>
+        <div class="stat"><div class="label">Now - May</div><div class="value" id="budget-stat-current">--</div><div class="note" id="budget-stat-current-note">Current load</div></div>
+        <div class="stat"><div class="label">June+</div><div class="value" id="budget-stat-future">--</div><div class="note" id="budget-stat-future-note">After temporary bills</div></div>
+        <div class="stat"><div class="label">Latest Ledger</div><div class="value" id="budget-stat-business">--</div><div class="note" id="budget-stat-business-note">Business snapshot</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:12px;">
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:10px;">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Monthly plan mix</div>
+          <div id="budget-plan-breakdown" style="display:grid;gap:8px;"></div>
+        </div>
+        <div style="display:grid;gap:12px;">
+          <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:10px;">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Variable focus</div>
+            <div id="budget-variable-breakdown" style="display:grid;gap:8px;"></div>
+          </div>
+          <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:10px;">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Business snapshot</div>
+            <div id="budget-business-breakdown" style="display:grid;gap:8px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="section panel" data-sort-id="layout-analytics" data-handle-label="Section">
+      <div class="widget-head">
+        <div>
+          <div class="subtle">Analytics</div>
+          <h2>All Sites</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <select id="analytics-period" style="padding:6px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-size:13px;cursor:pointer;">
+            <option value="1d">Today</option>
+            <option value="7d" selected>7 Days</option>
+            <option value="30d">30 Days</option>
+          </select>
+          <span id="analytics-updated" style="font-size:12px;color:var(--muted);"></span>
+        </div>
+      </div>
+
+      <!-- Global totals row -->
+      <div id="analytics-totals" style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;">
+        <div class="stat"><div class="label">Page Views</div><div class="value" id="a-views">--</div></div>
+        <div class="stat"><div class="label">Sessions</div><div class="value" id="a-sessions">--</div></div>
+        <div class="stat"><div class="label">Visitors</div><div class="value" id="a-visitors">--</div></div>
+        <div class="stat"><div class="label">Bounce Rate</div><div class="value" id="a-bounce">--</div></div>
+        <div class="stat"><div class="label">Avg Duration</div><div class="value" id="a-duration">--</div></div>
+        <div class="stat"><div class="label">Pages/Session</div><div class="value" id="a-pps">--</div></div>
+      </div>
+
+      <!-- Top pages + referrers side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:14px;">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px;">Top Pages</div>
+          <div id="a-top-pages" style="display:grid;gap:6px;font-size:13px;"></div>
+        </div>
+        <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:14px;">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px;">Top Referrers</div>
+          <div id="a-top-referrers" style="display:grid;gap:6px;font-size:13px;"></div>
+        </div>
+      </div>
+
+      <!-- Realtime -->
+      <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Live — Last 5 Minutes</div>
+          <div id="a-live-dot" style="width:8px;height:8px;border-radius:50%;background:var(--lime);animation:pulse 2s infinite;"></div>
+        </div>
+        <div style="display:flex;gap:20px;align-items:baseline;">
+          <div><span id="a-live-sessions" style="font-size:22px;font-weight:600;">--</span> <span style="font-size:13px;color:var(--muted);">active sessions</span></div>
+        </div>
+        <div id="a-live-events" style="margin-top:10px;display:grid;gap:4px;max-height:120px;overflow-y:auto;font-size:12px;font-family:monospace;"></div>
+      </div>
+
+      <!-- Per-site cards -->
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Per-Site Breakdown</div>
+      <div id="analytics-sites" style="display:grid;gap:12px;"></div>
+    </section>
+
+    </div>
+  </div>
+
+  <div id="overlay">
+    <iframe id="overlay-frame" allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *" sandbox="allow-same-origin allow-scripts allow-forms allow-presentation" referrerpolicy="no-referrer" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>
+  </div>
+  <div id="overlay-bar">
+    <button id="overlay-close" onclick="closeOverlay()">X</button>
+    <div id="overlay-title">App</div>
+  </div>
+  <div id="device-drawer-backdrop" onclick="closeDeviceDrawer()"></div>
+  <aside id="device-drawer">
+    <div class="drawer-top">
+      <div>
+        <div class="subtle">Device details</div>
+        <h2 id="drawer-device-name">Device</h2>
+        <p id="drawer-device-subtitle">Select a network device to edit room tags and notes.</p>
+      </div>
+      <button class="drawer-close" onclick="closeDeviceDrawer()">×</button>
+    </div>
+    <section class="drawer-panel">
+      <div class="drawer-grid">
+        <div class="drawer-field">
+          <div class="drawer-label">Status</div>
+          <div class="drawer-value" id="drawer-status">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">Type</div>
+          <div class="drawer-value" id="drawer-type">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">IP</div>
+          <div class="drawer-value" id="drawer-ip">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">MAC</div>
+          <div class="drawer-value" id="drawer-mac">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">Hostname</div>
+          <div class="drawer-value" id="drawer-hostname">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">Source</div>
+          <div class="drawer-value" id="drawer-source">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">Other IPs</div>
+          <div class="drawer-value" id="drawer-alt-ips">--</div>
+        </div>
+        <div class="drawer-field">
+          <div class="drawer-label">Lease</div>
+          <div class="drawer-value" id="drawer-lease">--</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="drawer-panel">
+      <div class="drawer-section-head">
+        <div>
+          <div class="subtle">Controls</div>
+          <h3 id="drawer-controls-title">Controls</h3>
+        </div>
+        <div class="drawer-status" id="drawer-control-status"></div>
+      </div>
+      <div class="drawer-controls-copy" id="drawer-controls-copy">No direct controls mapped for this device yet.</div>
+      <div class="drawer-controls-grid" id="drawer-controls-grid"></div>
+    </section>
+    <section class="drawer-panel">
+      <form id="device-form" class="drawer-form" onsubmit="saveDeviceDetails(event)">
+        <label>
+          Custom name
+          <input id="device-custom-name" type="text" placeholder="Optional override">
+        </label>
+        <label>
+          Room
+          <input id="device-room" type="text" placeholder="Living room, office, bedroom...">
+        </label>
+        <label>
+          Tags
+          <input id="device-tags" type="text" placeholder="tv, streaming, upstairs">
+        </label>
+        <label>
+          Note
+          <textarea id="device-note" placeholder="Anything worth remembering about this device"></textarea>
+        </label>
+        <div class="drawer-actions">
+          <button class="drawer-save" id="device-save" type="submit">Save</button>
+          <div class="drawer-status" id="drawer-save-status"></div>
+        </div>
+      </form>
+    </section>
+  </aside>
+
+  <script>
+    const LAUNCHER_BASE = `${window.location.origin}/launcher`;
+    const CALENDAR_API_BASE = LAUNCHER_BASE;
+    const PRIMARY_GOOGLE_ACCOUNT = "";
+    const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
+    const CONTINUE_LIMIT = 12;
+    const WEATHER_COM_RADAR_URL = "https://weather.com/weather/radar/interactive";
+    const RAINVIEWER_API_URL = "https://api.rainviewer.com/public/weather-maps.json";
+    const MESA_RADAR_CENTER = [39.5, -98.35];
+    const MESA_RADAR_ZOOM = 4;
+    const RADAR_ANIMATION_MS = 1500;
+    let continueItems = [];
+    let calendarEvents = [];
+    let googleAccounts = [];
+    let networkDevices = [];
+    let activeDeviceId = "";
+    let budgetSnapshot = null;
+    let radarMap = null;
+    let radarLayer = null;
+    let radarFrames = [];
+    let radarFrameIndex = 0;
+    let radarAnimationTimer = null;
+    let radarAnimating = true;
+    const STORAGE_KEYS = {
+      WATCH_HISTORY: "simplstream_watch_history",
+      PREFERRED_SERVER: "simplstream_preferred_server",
+      LAYOUT_ORDERS: "pihome_layout_orders_v3",
+      THEME: "pihome_theme_preference"
+    };
+
+    // --- Panel cache helpers (show last data instantly, refresh in background) ---
+    const CACHE_TTL = {
+      weather: 600000,    // 10 min
+      stats: 30000,       // 30 sec
+      services: 30000,    // 30 sec
+      calendar: 300000,   // 5 min
+      radar: 300000,      // 5 min
+      network: 120000,    // 2 min
+      accounts: 300000,   // 5 min
+      budget: 600000      // 10 min
+    };
+    function panelCacheKey(name) { return `pihome_cache_${name}`; }
+    function panelCacheGet(name) {
+      try {
+        const raw = localStorage.getItem(panelCacheKey(name));
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (Date.now() - entry.ts > (CACHE_TTL[name] || 60000) * 3) return null; // stale limit: 3x TTL
+        return entry.data;
+      } catch { return null; }
+    }
+    function panelCacheSet(name, data) {
+      try { localStorage.setItem(panelCacheKey(name), JSON.stringify({ data, ts: Date.now() })); } catch {}
+    }
+    let layoutEditMode = false;
+    let layoutOrders = readLayoutOrders();
+    const dragState = {
+      sourceKey: "",
+      draggedEl: null,
+      placeholder: null
+    };
+    const PLAYER_SOURCES = {
+      vsembed: (id, type, season, episode) => type === "tv"
+        ? `https://vsembed.ru/embed/tv?tmdb=${id}&season=${season}&episode=${episode}&autoplay=true&autoPlay=true`
+        : `https://vsembed.ru/embed/movie?tmdb=${id}&autoplay=true&autoPlay=true`,
+      vidlink: (id, type, season, episode) => type === "tv"
+        ? `https://vidlink.pro/tv/${id}/${season}/${episode}?autoplay=true&autoPlay=true`
+        : `https://vidlink.pro/movie/${id}?autoplay=true&autoPlay=true`,
+      "111movies": (id, type, season, episode) => type === "tv"
+        ? `https://111movies.net/tv/${id}/${season}/${episode}?autoplay=true&autoPlay=true`
+        : `https://111movies.net/movie/${id}?autoplay=true&autoPlay=true`,
+      videasy: (id, type, season, episode) => type === "tv"
+        ? `https://player.videasy.net/tv/${id}/${season}/${episode}?color=3B82F6&autoplay=true&autoPlay=true`
+        : `https://player.videasy.net/movie/${id}?color=3B82F6&autoplay=true&autoPlay=true`,
+      vidfast: (id, type, season, episode) => type === "tv"
+        ? `https://vidfast.pro/tv/${id}/${season}/${episode}?theme=2980B9&nextButton=true&autoPlay=true&autoplay=true`
+        : `https://vidfast.pro/movie/${id}?theme=2980B9&autoPlay=true&autoplay=true`
+    };
+    const PLAYER_SANDBOX = "allow-same-origin allow-scripts allow-forms allow-presentation";
+    const BACK_KEYS = new Set(["Escape", "BrowserBack", "GoBack", "Backspace"]);
+
+    function setActionMessage(text, kind = "") {
+      const el = document.getElementById("action-message");
+      el.textContent = text;
+      el.className = `message ${kind}`.trim();
+    }
+
+    function getSavedTheme() {
+      const saved = localStorage.getItem(STORAGE_KEYS.THEME);
+      if (saved === "light" || saved === "dark") return saved;
+      return "dark";
+    }
+
+    function updateThemeUi(theme) {
+      const lightButton = document.getElementById("theme-light-btn");
+      const darkButton = document.getElementById("theme-dark-btn");
+      if (!lightButton || !darkButton) return;
+      lightButton.classList.toggle("active", theme === "light");
+      darkButton.classList.toggle("active", theme === "dark");
+    }
+
+    function applyTheme(theme) {
+      const nextTheme = theme === "dark" ? "dark" : "light";
+      document.body.dataset.theme = nextTheme;
+      updateThemeUi(nextTheme);
+    }
+
+    function setTheme(theme) {
+      const nextTheme = theme === "dark" ? "dark" : "light";
+      localStorage.setItem(STORAGE_KEYS.THEME, nextTheme);
+      applyTheme(nextTheme);
+      setActionMessage(`${nextTheme === "dark" ? "Dark" : "Light"} mode enabled.`, "ok");
+    }
+
+    function readLayoutOrders() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.LAYOUT_ORDERS);
+        const data = raw ? JSON.parse(raw) : {};
+        return data && typeof data === "object" ? data : {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function saveLayoutOrders() {
+      localStorage.setItem(STORAGE_KEYS.LAYOUT_ORDERS, JSON.stringify(layoutOrders));
+    }
+
+    function makeSortId(prefix, value) {
+      const cleaned = String(value || "item")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return `${prefix}-${cleaned || "item"}`;
+    }
+
+    function getSortableChildren(container) {
+      return Array.from(container.children).filter((child) => child.dataset && child.dataset.sortId);
+    }
+
+    function applySavedOrder(container) {
+      const key = container.dataset.sortKey;
+      const saved = Array.isArray(layoutOrders[key]) ? layoutOrders[key] : [];
+      if (!saved.length) return;
+
+      const items = getSortableChildren(container);
+      const byId = new Map(items.map((item) => [item.dataset.sortId, item]));
+      const ordered = [];
+
+      for (const id of saved) {
+        const match = byId.get(id);
+        if (match) {
+          ordered.push(match);
+          byId.delete(id);
+        }
+      }
+
+      ordered.push(...items.filter((item) => byId.has(item.dataset.sortId)));
+      for (const item of ordered) {
+        container.appendChild(item);
+      }
+    }
+
+    function rememberContainerOrder(container) {
+      const key = container.dataset.sortKey;
+      if (!key) return;
+      layoutOrders[key] = getSortableChildren(container).map((item) => item.dataset.sortId);
+      saveLayoutOrders();
+    }
+
+    function ensureDragHandle(item) {
+      if (item.querySelector(".drag-handle")) return;
+      const handle = document.createElement("div");
+      handle.className = "drag-handle";
+      handle.textContent = "Move";
+      item.appendChild(handle);
+    }
+
+    function clearDragState() {
+      if (dragState.draggedEl) {
+        dragState.draggedEl.classList.remove("dragging");
+      }
+      if (dragState.placeholder && dragState.placeholder.isConnected) {
+        dragState.placeholder.remove();
+      }
+      dragState.sourceKey = "";
+      dragState.draggedEl = null;
+      dragState.placeholder = null;
+    }
+
+    function getDropTarget(container, x, y) {
+      const items = getSortableChildren(container).filter((item) => item !== dragState.draggedEl);
+      for (const item of items) {
+        const rect = item.getBoundingClientRect();
+        const halfY = rect.top + rect.height / 2;
+        const halfX = rect.left + rect.width / 2;
+        if (y < halfY) return item;
+        if (y <= rect.bottom && x < halfX) return item;
+      }
+      return null;
+    }
+
+    function bindSortableItem(item) {
+      if (item.dataset.dragBound === "1") {
+        item.draggable = layoutEditMode;
+        return;
+      }
+
+      item.dataset.dragBound = "1";
+      item.draggable = layoutEditMode;
+      item.classList.add("sortable-item");
+      ensureDragHandle(item);
+
+      item.addEventListener("dragstart", (event) => {
+        if (!layoutEditMode) {
+          event.preventDefault();
+          return;
+        }
+
+        const container = item.parentElement && item.parentElement.closest("[data-sort-key]");
+        if (!container) {
+          event.preventDefault();
+          return;
+        }
+
+        dragState.sourceKey = container.dataset.sortKey;
+        dragState.draggedEl = item;
+        dragState.placeholder = document.createElement("div");
+        dragState.placeholder.className = "drag-placeholder";
+        dragState.placeholder.style.height = `${Math.max(80, Math.round(item.getBoundingClientRect().height))}px`;
+
+        item.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", item.dataset.sortId || "");
+        }
+      });
+
+      item.addEventListener("dragend", () => {
+        clearDragState();
+      });
+    }
+
+    function bindSortableContainer(container) {
+      if (container.dataset.dragContainerBound === "1") return;
+      container.dataset.dragContainerBound = "1";
+
+      container.addEventListener("dragover", (event) => {
+        if (!layoutEditMode || !dragState.draggedEl || dragState.sourceKey !== container.dataset.sortKey) {
+          return;
+        }
+
+        event.preventDefault();
+        const target = event.target.closest("[data-sort-id]");
+        if (target && target.parentElement === container && target !== dragState.draggedEl) {
+          const rect = target.getBoundingClientRect();
+          const after = event.clientY > rect.top + rect.height / 2 || event.clientX > rect.left + rect.width / 2;
+          container.insertBefore(dragState.placeholder, after ? target.nextSibling : target);
+          return;
+        }
+
+        const fallbackTarget = getDropTarget(container, event.clientX, event.clientY);
+        if (fallbackTarget) {
+          container.insertBefore(dragState.placeholder, fallbackTarget);
+        } else {
+          container.appendChild(dragState.placeholder);
+        }
+      });
+
+      container.addEventListener("drop", (event) => {
+        if (!layoutEditMode || !dragState.draggedEl || dragState.sourceKey !== container.dataset.sortKey) {
+          return;
+        }
+
+        event.preventDefault();
+        if (dragState.placeholder && dragState.placeholder.parentElement === container) {
+          container.insertBefore(dragState.draggedEl, dragState.placeholder);
+          rememberContainerOrder(container);
+        }
+        clearDragState();
+      });
+    }
+
+    function refreshSortableContainer(container) {
+      if (!container) return;
+      applySavedOrder(container);
+      bindSortableContainer(container);
+      getSortableChildren(container).forEach((item) => {
+        bindSortableItem(item);
+        item.draggable = layoutEditMode;
+      });
+    }
+
+    function refreshSortableContainers() {
+      document.querySelectorAll("[data-sort-key]").forEach(refreshSortableContainer);
+    }
+
+    function updateLayoutUi() {
+      const button = document.getElementById("layout-mode-toggle");
+      const reset = document.getElementById("layout-reset");
+      const status = document.getElementById("layout-status");
+      if (!button || !reset || !status) return;
+      button.textContent = layoutEditMode ? "Done arranging" : "Arrange boxes";
+      button.classList.toggle("active", layoutEditMode);
+      reset.hidden = !layoutEditMode;
+      status.hidden = !layoutEditMode;
+    }
+
+    function setLayoutMode(enabled) {
+      layoutEditMode = Boolean(enabled);
+      document.body.classList.toggle("layout-edit-mode", layoutEditMode);
+      document.querySelectorAll("[data-sort-id]").forEach((item) => {
+        item.draggable = layoutEditMode;
+      });
+      if (!layoutEditMode) {
+        clearDragState();
+      }
+      updateLayoutUi();
+    }
+
+    function toggleLayoutMode() {
+      setLayoutMode(!layoutEditMode);
+      if (layoutEditMode) {
+        setActionMessage("Arrange mode on. Drag boxes into place, then press Done.", "ok");
+      } else {
+        setActionMessage("Layout saved.", "ok");
+      }
+    }
+
+    function resetLayout() {
+      layoutOrders = {};
+      localStorage.removeItem(STORAGE_KEYS.LAYOUT_ORDERS);
+      refreshSortableContainers();
+      setActionMessage("Layout reset to default.", "ok");
+    }
+
+    function openOverlay(url, title) {
+      document.getElementById("overlay-frame").src = url;
+      document.getElementById("overlay-title").textContent = title;
+      document.getElementById("overlay").classList.add("active");
+      document.getElementById("overlay-bar").classList.add("active");
+    }
+
+    function openSimplStream() {
+      window.top.location.href = "/";
+    }
+
+    function closeOverlay() {
+      document.getElementById("overlay-frame").src = "";
+      document.getElementById("overlay").classList.remove("active");
+      document.getElementById("overlay-bar").classList.remove("active");
+    }
+
+    function overlayIsOpen() {
+      return document.getElementById("overlay").classList.contains("active");
+    }
+
+    function launcherUrl(path) {
+      const cleanPath = path.startsWith("/") ? path : `/${path}`;
+      return `${LAUNCHER_BASE}${cleanPath}`;
+    }
+
+    async function fetchJson(path) {
+      const response = await fetch(launcherUrl(path));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function postJson(path, payload) {
+      const response = await fetch(launcherUrl(path), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        let message = `HTTP ${response.status}`;
+        try {
+          const data = await response.json();
+          message = data.error || message;
+        } catch (error) {
+          // Ignore JSON parse failures and keep the generic status message.
+        }
+        throw new Error(message);
+      }
+      return response.json();
+    }
+
+    async function fetchCalendarJson(path) {
+      const response = await fetch(`${CALENDAR_API_BASE}${path.startsWith("/") ? path : `/${path}`}`);
+      if (!response.ok) {
+        throw new Error(`Calendar HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    function formatGoogleStatus(account) {
+      if (!account) return { label: "Unknown", className: "offline" };
+      if (account.connected && Array.isArray(account.services) && account.services.length <= 1) return { label: "Limited", className: "offline" };
+      if (account.connected) return { label: "Connected", className: "online" };
+      if (account.status === "scope_missing") return { label: "Reconnect", className: "offline" };
+      if (account.status === "missing") return { label: "Not added", className: "offline" };
+      return { label: "Needs sign-in", className: "offline" };
+    }
+
+    function renderGoogleAccounts(data) {
+      const summary = document.getElementById("google-accounts-summary");
+      const list = document.getElementById("google-accounts-list");
+      googleAccounts = Array.isArray(data.accounts) ? data.accounts : [];
+
+      if (!googleAccounts.length) {
+        summary.textContent = "No Google accounts are configured yet.";
+        list.innerHTML = `<div class="empty">No stored GOG accounts found.</div>`;
+        return;
+      }
+
+      const connectedCount = googleAccounts.filter((account) => account.connected).length;
+      summary.textContent = `${connectedCount} connected · ${googleAccounts.length - connectedCount} need attention.`;
+
+      list.innerHTML = googleAccounts.map((account) => {
+        const status = formatGoogleStatus(account);
+        const services = Array.isArray(account.services) && account.services.length
+          ? account.services.join(", ")
+          : "calendar";
+        const primaryBadge = account.primary ? `<span class="google-account-badge">Primary</span>` : "";
+        const needsUpgrade = account.connected && Array.isArray(account.services) && account.services.length <= 1;
+        const connectButton = account.connected && !needsUpgrade
+          ? ""
+          : `<button class="connect-btn" onclick="startGoogleAuth('${escapeHtml(account.email)}'); return false;">${needsUpgrade ? "Upgrade" : "Connect"}</button>`;
+        const sortId = escapeHtml(makeSortId("google", account.email || account.display_email || "account"));
+        return `
+          <div class="google-account-row" data-sort-id="${sortId}">
+            <div class="google-account-main">
+              <div class="google-account-line">
+                <div class="google-account-email">${escapeHtml(account.display_email || account.email)}</div>
+                ${primaryBadge}
+              </div>
+              <div class="google-account-meta">Services: ${escapeHtml(services)}</div>
+            </div>
+            <div class="google-account-actions">
+              <div class="status-pill ${status.className}">${status.label}</div>
+              ${connectButton}
+            </div>
+          </div>
+        `;
+      }).join("");
+      refreshSortableContainer(list);
+    }
+
+    function getGreeting(now) {
+      const hour = now.getHours();
+      if (hour < 12) return "Good morning.";
+      if (hour < 18) return "Good afternoon.";
+      return "Good evening.";
+    }
+
+    function toDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function getCalendarEventKeys() {
+      const keys = new Set();
+      for (const event of calendarEvents) {
+        if (!event || !event.start || !event.start.iso) continue;
+        if (event.start.isAllDay) {
+          keys.add(String(event.start.iso).slice(0, 10));
+          continue;
+        }
+
+        const date = new Date(event.start.iso);
+        if (Number.isNaN(date.getTime())) continue;
+        keys.add(toDateKey(date));
+      }
+      return keys;
+    }
+
+    function renderMonthCalendar(now = new Date()) {
+      const title = document.getElementById("month-title");
+      const grid = document.getElementById("month-grid");
+      if (!title || !grid) return;
+
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const cellsNeeded = Math.ceil((firstDay.getDay() + daysInMonth) / 7) * 7;
+      const gridStart = new Date(year, month, 1 - firstDay.getDay());
+      const todayKey = toDateKey(now);
+      const eventKeys = getCalendarEventKeys();
+
+      title.textContent = now.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric"
+      });
+
+      const cells = [];
+      for (let index = 0; index < cellsNeeded; index += 1) {
+        const cellDate = new Date(gridStart);
+        cellDate.setDate(gridStart.getDate() + index);
+        const key = toDateKey(cellDate);
+        const inMonth = cellDate.getMonth() === month;
+        const isToday = key === todayKey;
+        const hasEvent = eventKeys.has(key);
+        const classes = [
+          "month-day",
+          inMonth ? "" : "muted",
+          isToday ? "today" : "",
+          hasEvent ? "has-event" : ""
+        ].filter(Boolean).join(" ");
+        cells.push(`<div class="${classes}">${cellDate.getDate()}</div>`);
+      }
+
+      grid.innerHTML = cells.join("");
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById("hero-greeting").textContent = getGreeting(now);
+      renderMonthCalendar(now);
+      document.getElementById("clock-time").textContent = now.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+      const dateText = now.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric"
+      });
+      document.getElementById("hero-date-inline").textContent = dateText;
+      document.getElementById("clock-date").textContent = "";
+    }
+
+    function formatUptime(seconds) {
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const parts = [];
+      if (days) parts.push(`${days}d`);
+      if (hours || days) parts.push(`${hours}h`);
+      parts.push(`${minutes}m`);
+      return parts.join(" ");
+    }
+
+    function formatBytesGiB(value) {
+      return `${value.toFixed(1)} GB`;
+    }
+
+    function getWeatherVisual(description = "", code = "") {
+      const text = String(description || "").toLowerCase();
+      const weatherCode = String(code || "");
+
+      if (text.includes("thunder") || weatherCode === "389" || weatherCode === "392" || weatherCode === "395") {
+        return { icon: "⛈️", label: "Storm" };
+      }
+      if (text.includes("snow") || text.includes("sleet") || text.includes("blizzard") || weatherCode === "338") {
+        return { icon: "❄️", label: "Snow" };
+      }
+      if (text.includes("rain") || text.includes("drizzle") || text.includes("shower")) {
+        return { icon: "🌧️", label: "Rain" };
+      }
+      if (text.includes("fog") || text.includes("mist") || text.includes("haze")) {
+        return { icon: "🌫️", label: "Fog" };
+      }
+      if (text.includes("cloud") || text.includes("overcast")) {
+        return { icon: "☁️", label: "Clouds" };
+      }
+      if (text.includes("partly") || text.includes("patchy")) {
+        return { icon: "⛅", label: "Partly Cloudy" };
+      }
+      if (text.includes("wind")) {
+        return { icon: "💨", label: "Windy" };
+      }
+      return { icon: "☀️", label: "Clear" };
+    }
+
+    function formatShortTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "Unavailable";
+      return date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function formatLongDateTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "Unavailable";
+      return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function timeAgo(iso) {
+      const then = Date.parse(iso || "");
+      if (!then) return "Recently";
+      const diff = Math.max(0, Date.now() - then);
+      const minutes = Math.floor(diff / 60000);
+      if (minutes < 1) return "Just now";
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
+
+    function formatTimecode(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const secs = total % 60;
+      if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      return `${minutes}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function normalizePlaybackTimestamp(value) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return new Date(value).toISOString();
+      }
+      if (typeof value === "string" && value) {
+        const parsed = Date.parse(value);
+        if (parsed) return new Date(parsed).toISOString();
+      }
+      return null;
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function prettyDeviceType(type) {
+      const labels = {
+        audio: "Audio",
+        camera: "Camera",
+        console: "Console",
+        desktop: "Desktop",
+        laptop: "Laptop",
+        phone: "Phone",
+        printer: "Printer",
+        router: "Router",
+        server: "Server",
+        "smart-home": "Smart Home",
+        tablet: "Tablet",
+        thermostat: "Thermostat",
+        tv: "TV",
+        unknown: "Unknown",
+        watch: "Watch"
+      };
+      return labels[type] || "Device";
+    }
+
+    function prettyDeviceSource(source) {
+      const labels = {
+        alias: "Alias",
+        arp: "ARP",
+        dhcp: "DHCP",
+        mapped: "Mapped"
+      };
+      return labels[source] || "Unknown";
+    }
+
+    function getDeviceStatusState(device) {
+      const kind = device && device.status_kind
+        ? device.status_kind
+        : (device && device.online ? "online" : (device && device.neighbor_state && device.neighbor_state !== "FAILED" ? "sleeping" : "offline"));
+
+      const label = device && device.status_label
+        ? device.status_label
+        : (kind === "online" ? "Online" : (kind === "sleeping" ? "Sleeping" : "Offline"));
+
+      return { kind, label };
+    }
+
+    function describeDeviceStatus(device) {
+      const status = getDeviceStatusState(device);
+      if (status.kind === "online") return "Responding now";
+      if (status.kind === "sleeping") {
+        if (device.neighbor_state && device.neighbor_state !== "FAILED") {
+          return `Last seen ${String(device.neighbor_state).toLowerCase()}`;
+        }
+        return "Likely asleep or idle";
+      }
+      return "Not responding";
+    }
+
+    function findNetworkDevice(deviceId) {
+      return networkDevices.find((device) => device.device_id === deviceId) || null;
+    }
+
+    function setDrawerStatus(text, kind = "") {
+      const el = document.getElementById("drawer-save-status");
+      el.textContent = text;
+      el.className = `drawer-status ${kind}`.trim();
+    }
+
+    function setControlStatus(text, kind = "") {
+      const el = document.getElementById("drawer-control-status");
+      el.textContent = text;
+      el.className = `drawer-status ${kind}`.trim();
+    }
+
+    function deviceDrawerIsOpen() {
+      return document.getElementById("device-drawer").classList.contains("active");
+    }
+
+    function toggleControlButtons(disabled) {
+      document.querySelectorAll("#drawer-controls-grid .drawer-control").forEach((button) => {
+        button.disabled = disabled;
+      });
+    }
+
+    function renderDeviceControls(device) {
+      const title = document.getElementById("drawer-controls-title");
+      const copy = document.getElementById("drawer-controls-copy");
+      const grid = document.getElementById("drawer-controls-grid");
+      const controls = device && device.controls && typeof device.controls === "object"
+        ? device.controls
+        : { supported: false, title: "Controls", reason: "No direct controls mapped for this device yet.", actions: [] };
+
+      title.textContent = controls.title || "Controls";
+
+      const lines = [];
+      if (controls.supported && !device.online) {
+        lines.push("This device is not responding right now, so actions are disabled.");
+      }
+      lines.push(controls.hint || controls.reason || "No direct controls mapped for this device yet.");
+      copy.textContent = lines.join(" ");
+
+      grid.innerHTML = "";
+      if (!controls.supported || !Array.isArray(controls.actions) || !controls.actions.length) {
+        return;
+      }
+
+      for (const action of controls.actions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `drawer-control ${action.tone || ""}`.trim();
+        button.textContent = action.label || action.action;
+        button.disabled = !device.online;
+        button.addEventListener("click", () => {
+          runDeviceControl(action.action, action.value);
+        });
+        grid.appendChild(button);
+      }
+    }
+
+    function fillDeviceDrawer(device) {
+      const status = getDeviceStatusState(device);
+      document.getElementById("drawer-device-name").textContent = device.name || device.ip;
+      document.getElementById("drawer-device-subtitle").textContent = device.room
+        ? `${device.room} · ${prettyDeviceType(device.type)}`
+        : prettyDeviceType(device.type);
+      document.getElementById("drawer-status").textContent = status.label;
+      document.getElementById("drawer-type").textContent = prettyDeviceType(device.type);
+      document.getElementById("drawer-ip").textContent = device.ip || "Unavailable";
+      document.getElementById("drawer-mac").textContent = device.mac || "Unavailable";
+      document.getElementById("drawer-hostname").textContent = device.hostname || "Unavailable";
+      document.getElementById("drawer-source").textContent = prettyDeviceSource(device.source);
+      document.getElementById("drawer-alt-ips").textContent = Array.isArray(device.alternate_ips) && device.alternate_ips.length
+        ? device.alternate_ips.join(", ")
+        : "None";
+      document.getElementById("drawer-lease").textContent = device.lease_expires
+        ? formatLongDateTime(device.lease_expires)
+        : "Unavailable";
+      document.getElementById("device-custom-name").value = device.custom_name || "";
+      document.getElementById("device-room").value = device.room || "";
+      document.getElementById("device-tags").value = Array.isArray(device.tags) ? device.tags.join(", ") : "";
+      document.getElementById("device-note").value = device.user_note || "";
+      setDrawerStatus("");
+      setControlStatus("");
+      renderDeviceControls(device);
+    }
+
+    function openDeviceDrawer(index) {
+      const device = networkDevices[index];
+      if (!device) return;
+      activeDeviceId = device.device_id;
+      fillDeviceDrawer(device);
+      document.getElementById("device-drawer").classList.add("active");
+      document.getElementById("device-drawer-backdrop").classList.add("active");
+    }
+
+    function closeDeviceDrawer() {
+      activeDeviceId = "";
+      document.getElementById("device-drawer").classList.remove("active");
+      document.getElementById("device-drawer-backdrop").classList.remove("active");
+      setDrawerStatus("");
+      setControlStatus("");
+    }
+
+    function formatCalendarDay(date) {
+      return date.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric"
+      });
+    }
+
+    function formatCalendarClock(date) {
+      return date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function formatCalendarRange(event) {
+      if (!event || !event.start || !event.start.iso) return "Time unavailable";
+      if (event.start.isAllDay) {
+        return formatCalendarDay(new Date(`${event.start.iso}T00:00:00`));
+      }
+
+      const start = new Date(event.start.iso);
+      const end = event.end && event.end.iso ? new Date(event.end.iso) : null;
+      const day = formatCalendarDay(start);
+      const startTime = formatCalendarClock(start);
+
+      if (!end || Number.isNaN(end.getTime())) {
+        return `${day} · ${startTime}`;
+      }
+
+      const sameDay = start.toDateString() === end.toDateString();
+      return sameDay
+        ? `${day} · ${startTime} - ${formatCalendarClock(end)}`
+        : `${day} · ${startTime} -> ${formatCalendarDay(end)} ${formatCalendarClock(end)}`;
+    }
+
+    function setCalendarTicker(items) {
+      const track = document.getElementById("calendar-ticker-track");
+      if (!items.length) {
+        track.innerHTML = `<span class="ticker-item">Connect Google Calendar to show upcoming events here.</span>`;
+        track.style.animation = "none";
+        return;
+      }
+
+      const repeated = items.length === 1 ? items : [...items, ...items];
+      track.innerHTML = repeated.map((item) => `<span class="ticker-item">${item}</span>`).join("");
+      const totalLength = repeated.join(" ").length;
+      const seconds = Math.max(26, Math.min(72, Math.round(totalLength / 5)));
+      track.style.setProperty("--ticker-duration", `${seconds}s`);
+      track.style.animation = "ticker-scroll var(--ticker-duration) linear infinite";
+    }
+
+    function renderCalendar(data) {
+      const connectButton = document.getElementById("calendar-connect");
+      const status = document.getElementById("calendar-status");
+      const list = document.getElementById("calendar-list");
+
+      calendarEvents = Array.isArray(data.events) ? data.events : [];
+      connectButton.hidden = !data.needs_auth;
+
+      if (data.needs_auth) {
+        status.textContent = "Sign in with Google to show calendar events.";
+        list.innerHTML = `<div class="empty">Google Calendar is not connected right now.</div>`;
+        setCalendarTicker([]);
+        renderMonthCalendar();
+        return;
+      }
+
+      if (!calendarEvents.length) {
+        status.textContent = "No upcoming events in the next two weeks.";
+        list.innerHTML = `<div class="empty">Nothing scheduled right now.</div>`;
+        setCalendarTicker([`No upcoming calendar events.`]);
+        renderMonthCalendar();
+        return;
+      }
+
+      status.textContent = "";
+      list.innerHTML = calendarEvents.slice(0, 3).map((event) => {
+        const title = escapeHtml(event.title || "(Untitled event)");
+        const meta = escapeHtml(formatCalendarRange(event));
+        const location = event.location ? `<div class="calendar-item-meta">${escapeHtml(event.location)}</div>` : "";
+        const sortId = escapeHtml(makeSortId("calendar", `${event.title || "event"}-${event.start && event.start.iso ? event.start.iso : meta}`));
+        return `
+          <div class="calendar-item" data-sort-id="${sortId}">
+            <strong>${title}</strong>
+            <div class="calendar-item-meta">${meta}</div>
+            ${location}
+          </div>
+        `;
+      }).join("");
+      refreshSortableContainer(list);
+
+      setCalendarTicker(calendarEvents.map((event) => {
+        const bits = [
+          escapeHtml(event.title || "(Untitled event)"),
+          `<span>${escapeHtml(formatCalendarRange(event))}</span>`
+        ];
+        if (event.location) bits.push(`<span>${escapeHtml(event.location)}</span>`);
+        return bits.join(" · ");
+      }));
+      renderMonthCalendar();
+    }
+
+    async function loadCalendar(showSuccess = false) {
+      const cached = panelCacheGet("calendar");
+      if (cached) renderCalendar(cached);
+      try {
+        const data = await fetchCalendarJson("/calendar/events");
+        panelCacheSet("calendar", data);
+        renderCalendar(data);
+        if (showSuccess && data.connected) {
+          setActionMessage("Google Calendar connected.", "ok");
+        }
+      } catch (error) {
+        if (!cached) {
+          calendarEvents = [];
+          document.getElementById("calendar-connect").hidden = false;
+          document.getElementById("calendar-status").textContent = "Calendar bridge offline.";
+          document.getElementById("calendar-list").innerHTML = `<div class="empty">Could not reach the Google Calendar bridge.</div>`;
+          setCalendarTicker([`Calendar bridge offline.`]);
+          renderMonthCalendar();
+        }
+      }
+    }
+
+    async function loadGoogleAccounts() {
+      const cached = panelCacheGet("accounts");
+      if (cached) renderGoogleAccounts(cached);
+      try {
+        const data = await fetchCalendarJson("/calendar/accounts");
+        panelCacheSet("accounts", data);
+        renderGoogleAccounts(data);
+      } catch (error) {
+        if (!cached) {
+          googleAccounts = [];
+          document.getElementById("google-accounts-summary").textContent = "Google bridge offline.";
+          document.getElementById("google-accounts-list").innerHTML = `<div class="empty">Could not reach the shared Google bridge.</div>`;
+        }
+      }
+    }
+
+    async function startGoogleAuth(account) {
+      setActionMessage(`Opening Google sign-in for ${account}...`, "");
+      try {
+        const data = await fetchCalendarJson(`/calendar/account-auth/start?account=${encodeURIComponent(account)}`);
+        window.location.href = data.auth_url;
+      } catch (error) {
+        setActionMessage("Could not start Google sign-in.", "error");
+      }
+    }
+
+    async function startCalendarAuth() {
+      return startGoogleAuth(PRIMARY_GOOGLE_ACCOUNT);
+    }
+
+    function normalizeSourceId(sourceId) {
+      if (sourceId === "vsembed") return "vidsrc";
+      return sourceId;
+    }
+
+    function getPreferredServer() {
+      const saved = normalizeSourceId(localStorage.getItem(STORAGE_KEYS.PREFERRED_SERVER));
+      if (saved === "vidfast" || saved === "videasy" || saved === "vidsrc" || saved === "111movies" || saved === "vidlink") return saved;
+      return "vidsrc";
+    }
+
+    function applyOverlaySandboxForSource(sourceId) {
+      const frame = document.getElementById("overlay-frame");
+      if (!frame) return;
+      if (sourceId === "vidfast" || sourceId === "videasy") {
+        frame.removeAttribute("sandbox");
+      } else {
+        frame.setAttribute("sandbox", PLAYER_SANDBOX);
+      }
+      frame.setAttribute("referrerpolicy", "no-referrer");
+    }
+
+    let _cachedWatchHistory = [];
+    let _cachedCurrentPlayback = null;
+
+    function readWatchHistory() {
+      return _cachedWatchHistory;
+    }
+
+    async function fetchWatchHistory() {
+      try {
+        const res = await fetch(`${launcherUrl("/api/watch-history")}?t=${Date.now()}`);
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          _cachedWatchHistory = rows;
+          try { localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(rows)); } catch(e) {}
+          return;
+        }
+      } catch(e) {}
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.WATCH_HISTORY);
+        const rows = raw ? JSON.parse(raw) : [];
+        _cachedWatchHistory = Array.isArray(rows) ? rows : [];
+      } catch(e) {
+        _cachedWatchHistory = [];
+      }
+    }
+
+    async function fetchCurrentPlayback() {
+      try {
+        const data = await fetchJson("/api/current-playback");
+        _cachedCurrentPlayback = data && data.active ? data : null;
+      } catch (error) {
+        _cachedCurrentPlayback = null;
+      }
+    }
+
+    function getContinueRows() {
+      const latest = new Map();
+      for (const row of readWatchHistory()) {
+        if (!row || row.tmdb_id == null || !row.media_type) continue;
+        const key = `${row.tmdb_id}:${row.media_type}`;
+        const prev = latest.get(key);
+        const prevTime = prev && prev.last_watched ? Date.parse(prev.last_watched) || 0 : 0;
+        const nextTime = row.last_watched ? Date.parse(row.last_watched) || 0 : 0;
+        if (!prev || nextTime >= prevTime) latest.set(key, row);
+      }
+
+      const livePlayback = _cachedCurrentPlayback && _cachedCurrentPlayback.current;
+      if (livePlayback && livePlayback.tmdb_id != null && livePlayback.media_type) {
+        const key = `${livePlayback.tmdb_id}:${livePlayback.media_type}`;
+        const prev = latest.get(key) || {};
+        const liveRow = {
+          ...prev,
+          tmdb_id: Number(livePlayback.tmdb_id),
+          media_type: livePlayback.media_type,
+          title: livePlayback.title || prev.title || "Untitled",
+          season: livePlayback.season || prev.season || 1,
+          episode: livePlayback.episode || prev.episode || 1,
+          source: normalizeSourceId(livePlayback.source || prev.source || getPreferredServer()),
+          position: Number(livePlayback.current_time || (livePlayback.saved_progress && livePlayback.saved_progress.watched) || prev.position || 0),
+          duration: Number(livePlayback.duration || (livePlayback.saved_progress && livePlayback.saved_progress.duration) || prev.duration || 0),
+          last_watched: normalizePlaybackTimestamp(livePlayback.last_updated) || prev.last_watched || new Date().toISOString(),
+          live: true,
+          in_sync: Boolean(_cachedCurrentPlayback.in_sync),
+          paused: Boolean(livePlayback.paused),
+          poster_path: prev.poster_path || "",
+          saved_progress: livePlayback.saved_progress || null
+        };
+        latest.set(key, liveRow);
+      }
+
+      return Array.from(latest.values())
+        .sort((a, b) => (Date.parse(b.last_watched) || 0) - (Date.parse(a.last_watched) || 0))
+        .slice(0, CONTINUE_LIMIT);
+    }
+
+    function getResumeSeconds(item) {
+      const watched = Number(item.current_time || item.position || (item.saved_progress && item.saved_progress.watched) || 0);
+      const duration = getDurationSeconds(item);
+      if (duration > 0) {
+        const remaining = duration - watched;
+        if (watched >= duration * 0.9 || remaining <= 90) return 0;
+      }
+      return watched;
+    }
+
+    function getDurationSeconds(item) {
+      return Number(item.duration || (item.saved_progress && item.saved_progress.duration) || 0);
+    }
+
+    function buildProgressLabel(item) {
+      const rawWatched = Number(item.current_time || item.position || (item.saved_progress && item.saved_progress.watched) || 0);
+      const duration = getDurationSeconds(item);
+      if (duration > 0 && (rawWatched >= duration * 0.9 || duration - rawWatched <= 90)) return "Watched";
+      const watched = getResumeSeconds(item);
+      if (watched > 0 && duration > 0) return `${formatTimecode(watched)} / ${formatTimecode(duration)}`;
+      if (watched > 0) return `At ${formatTimecode(watched)}`;
+      return "";
+    }
+
+    function buildPlayerUrl(item) {
+      const sourceId = normalizeSourceId(item.source || getPreferredServer());
+      const source = PLAYER_SOURCES[sourceId] || PLAYER_SOURCES.vsembed;
+      const season = item.season || 1;
+      const episode = item.episode || 1;
+      return source(item.tmdb_id, item.media_type, season, episode);
+    }
+
+    function buildTopLevelPlayerUrl(item, mode) {
+      const sourceId = normalizeSourceId(item.source || getPreferredServer());
+      const resumeTime = Math.floor(getResumeSeconds(item));
+      const shouldReplay = mode === "replay" || (!mode && item.media_type === "tv");
+      const params = new URLSearchParams({
+        id: String(item.tmdb_id),
+        type: item.media_type || "movie",
+        season: String(item.season || 1),
+        episode: String(item.episode || 1),
+        source: sourceId,
+        title: item.title || "Untitled",
+        poster: item.poster_path || ""
+      });
+      if (shouldReplay) {
+        params.set("mode", "replay");
+      } else if (resumeTime > 30) {
+        params.set("t", String(resumeTime));
+      }
+      return `/play.html?${params.toString()}`;
+    }
+
+    function buildContinueMeta(item) {
+      const progressLabel = buildProgressLabel(item);
+      if (item.media_type === "tv") {
+        const season = item.season || 1;
+        const episode = item.episode || 1;
+        return progressLabel
+          ? `Season ${season} Episode ${episode} · ${progressLabel}`
+          : `Season ${season} Episode ${episode}`;
+      }
+      return progressLabel ? `Movie · ${progressLabel}` : "Movie";
+    }
+
+    function buildContinueStatus(item) {
+      const progressLabel = buildProgressLabel(item);
+      if (item.live) {
+        const state = item.paused ? "Paused now" : "Playing now";
+        return progressLabel ? `${state} · ${progressLabel}` : state;
+      }
+      return timeAgo(item.last_watched);
+    }
+
+    function buildContinueFallback(item, title) {
+      const mark = item.media_type === "tv" ? "TV" : "MV";
+      const meta = item.media_type === "tv" ? "Series" : "Movie";
+      return `
+        <div class="continue-fallback">
+          <div class="continue-fallback-mark">${mark}</div>
+          <div class="continue-fallback-title">${title}</div>
+          <div class="continue-fallback-meta">${meta}</div>
+        </div>
+      `;
+    }
+
+    async function renderContinueWatching() {
+      await Promise.all([fetchWatchHistory(), fetchCurrentPlayback()]);
+      const grid = document.getElementById("continue-grid");
+      continueItems = getContinueRows();
+      if (!continueItems.length) {
+        grid.innerHTML = `<div class="empty">Nothing in watch history yet. Start something in SimplStream and it will show up here.</div>`;
+        return;
+      }
+
+      grid.innerHTML = continueItems.map((item, index) => {
+        const title = escapeHtml(item.title || "Untitled");
+        const hasPoster = Boolean(item.poster_path);
+        const poster = hasPoster
+          ? `<img src="${TMDB_IMG}${item.poster_path}" alt="${title}" loading="lazy" decoding="async">`
+          : buildContinueFallback(item, title);
+        const badge = item.media_type === "tv"
+          ? "Start episode"
+          : (item.live ? (item.paused ? "Resume now" : "Playing now") : "Resume movie");
+        const sortId = escapeHtml(makeSortId("continue", `${item.tmdb_id}-${item.media_type}-${item.season || 0}-${item.episode || 0}`));
+        return `
+          <div class="continue-card" data-sort-id="${sortId}" onclick="resumeItem(${index})">
+            <div class="continue-poster${hasPoster ? "" : " fallback"}">
+              ${poster}
+              <div class="continue-badge">${badge}</div>
+            </div>
+            <div class="continue-copy">
+              <div class="continue-title">${title}</div>
+              <div class="continue-meta">${escapeHtml(buildContinueMeta(item))}</div>
+              <div class="continue-time">${escapeHtml(buildContinueStatus(item))}</div>
+              ${item.media_type === "tv" ? `<button class="continue-replay" type="button" onclick="replayItem(event, ${index})">Replay S${item.season || 1} E${item.episode || 1}</button>` : ""}
+            </div>
+          </div>
+        `;
+      }).join("");
+      refreshSortableContainer(grid);
+    }
+
+    function resumeItem(index) {
+      const item = continueItems[index];
+      if (!item) return;
+      window.top.location.href = buildTopLevelPlayerUrl(item);
+    }
+
+    function replayItem(event, index) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const item = continueItems[index];
+      if (!item) return;
+      window.top.location.href = buildTopLevelPlayerUrl(item, "replay");
+    }
+
+    function applyWeatherData(current, label) {
+      const desc = current.weatherDesc[0].value;
+      const visual = getWeatherVisual(desc, current.weatherCode);
+      document.getElementById("weather-temp").textContent = `${current.temp_F} F`;
+      document.getElementById("weather-desc").textContent = desc;
+      document.getElementById("weather-icon").textContent = visual.icon;
+      document.getElementById("weather-condition-label").textContent = visual.label;
+      document.getElementById("weather-feels-like").textContent = `${current.FeelsLikeF} F`;
+      document.getElementById("weather-humidity").textContent = `${current.humidity}%`;
+      document.getElementById("weather-wind").textContent = `${current.windspeedMiles} mph`;
+      document.getElementById("weather-updated").textContent = label;
+    }
+
+    async function loadWeather() {
+      const cached = panelCacheGet("weather");
+      if (cached) applyWeatherData(cached, "Cached");
+      try {
+        const response = await fetch("https://wttr.in/?format=j1");
+        const data = await response.json();
+        const current = data.current_condition[0];
+        panelCacheSet("weather", current);
+        applyWeatherData(current, "Live");
+      } catch (error) {
+        if (!cached) {
+          document.getElementById("weather-desc").textContent = "Weather unavailable";
+          document.getElementById("weather-icon").textContent = "•";
+          document.getElementById("weather-condition-label").textContent = "Offline";
+          document.getElementById("weather-feels-like").textContent = "--";
+          document.getElementById("weather-humidity").textContent = "--";
+          document.getElementById("weather-wind").textContent = "--";
+          document.getElementById("weather-updated").textContent = "Offline";
+        }
+      }
+    }
+
+    function formatRadarTime(timestamp) {
+      if (!timestamp) return "Live";
+      try {
+        return new Intl.DateTimeFormat("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "America/Phoenix"
+        }).format(new Date(timestamp * 1000));
+      } catch (error) {
+        return "Live";
+      }
+    }
+
+    function setRadarText(timeText, statusText) {
+      const timeEl = document.getElementById("radar-time");
+      const statusEl = document.getElementById("radar-status");
+      if (timeEl) timeEl.textContent = timeText;
+      if (statusEl) statusEl.textContent = statusText;
+    }
+
+    function setRadarToggleText() {
+      const button = document.getElementById("radar-playback-toggle");
+      if (button) button.textContent = radarAnimating ? "Pause" : "Play";
+    }
+
+    function initRadarMap() {
+      const el = document.getElementById("mesa-radar-map");
+      if (!el || radarMap || !window.L) return Boolean(radarMap);
+      radarMap = L.map(el, {
+        center: MESA_RADAR_CENTER,
+        zoom: MESA_RADAR_ZOOM,
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        tap: false,
+        touchZoom: false
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 12,
+        minZoom: 5,
+        attribution: "&copy; OpenStreetMap"
+      }).addTo(radarMap);
+      L.control.attribution({ prefix: false, position: "bottomright" })
+        .addAttribution("&copy; OpenStreetMap")
+        .addAttribution("Radar &copy; RainViewer")
+        .addTo(radarMap);
+      setTimeout(() => radarMap.invalidateSize(), 150);
+      return true;
+    }
+
+    function applyRadarFrame(frame) {
+      if (!frame || !frame.host || !frame.path || !initRadarMap()) return;
+      const tileUrl = `${frame.host}${frame.path}/512/{z}/{x}/{y}/2/1_1.png`;
+      if (!radarLayer) {
+        radarLayer = L.tileLayer(tileUrl, {
+          opacity: 0.72,
+          maxZoom: MESA_RADAR_ZOOM,
+          maxNativeZoom: MESA_RADAR_ZOOM,
+          zIndex: 20,
+          attribution: "Radar &copy; RainViewer"
+        }).addTo(radarMap);
+      } else {
+        radarLayer.setUrl(tileUrl);
+      }
+      radarMap.setView(MESA_RADAR_CENTER, MESA_RADAR_ZOOM, { animate: false });
+      const count = radarFrames.length || 1;
+      setRadarText(formatRadarTime(frame.time), `Looping radar ${radarFrameIndex + 1}/${count}`);
+    }
+
+    function stopRadarAnimation() {
+      if (radarAnimationTimer) {
+        clearInterval(radarAnimationTimer);
+        radarAnimationTimer = null;
+      }
+    }
+
+    function showNextRadarFrame() {
+      if (!radarFrames.length) return;
+      const frame = radarFrames[radarFrameIndex] || radarFrames[0];
+      applyRadarFrame(frame);
+      radarFrameIndex = (radarFrameIndex + 1) % radarFrames.length;
+    }
+
+    function startRadarAnimation() {
+      stopRadarAnimation();
+      setRadarToggleText();
+      if (!radarFrames.length) return;
+      showNextRadarFrame();
+      if (radarFrames.length > 1) {
+        radarAnimationTimer = setInterval(showNextRadarFrame, RADAR_ANIMATION_MS);
+      }
+    }
+
+    function applyRadarFrames(sequence) {
+      if (!sequence || !Array.isArray(sequence.frames) || !sequence.frames.length) return;
+      radarFrames = sequence.frames;
+      radarFrameIndex = Math.max(0, Math.min(sequence.startIndex || 0, radarFrames.length - 1));
+      if (radarAnimating) {
+        startRadarAnimation();
+      } else {
+        stopRadarAnimation();
+        applyRadarFrame(radarFrames[radarFrameIndex]);
+      }
+      setRadarToggleText();
+    }
+
+    function toggleRadarAnimation() {
+      radarAnimating = !radarAnimating;
+      if (radarAnimating) {
+        startRadarAnimation();
+      } else {
+        stopRadarAnimation();
+        setRadarText("Live", "Paused");
+      }
+      setRadarToggleText();
+    }
+
+    async function loadRadarMap(force = false) {
+      const cached = panelCacheGet("radar");
+      if (cached && !force) applyRadarFrames(cached);
+      if (!window.L) {
+        setRadarText("Offline", "Map library unavailable");
+        return;
+      }
+      initRadarMap();
+      try {
+        const response = await fetch(RAINVIEWER_API_URL, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Radar ${response.status}`);
+        const data = await response.json();
+        const frames = [
+          ...((data.radar && data.radar.past) || []),
+          ...((data.radar && data.radar.nowcast) || [])
+        ].filter((frame) => frame && frame.path);
+        if (!data.host || !frames.length) throw new Error("Radar frame unavailable");
+        const sequence = {
+          frames: frames.map((frame) => ({ host: data.host, path: frame.path, time: frame.time })),
+          startIndex: 0
+        };
+        panelCacheSet("radar", sequence);
+        applyRadarFrames(sequence);
+      } catch (error) {
+        if (!cached) {
+          setRadarText("Offline", "Radar unavailable");
+        }
+      }
+    }
+
+    function refreshRadarMap(force = true) {
+      loadRadarMap(force);
+    }
+
+    function openWeatherRadar() {
+      openExternal(WEATHER_COM_RADAR_URL, "Weather.com Radar");
+    }
+
+    function applyStatsData(data) {
+      document.getElementById("stat-temp").textContent = data.cpu_temp_c != null ? `${data.cpu_temp_c.toFixed(1)} C` : "Unavailable";
+      document.getElementById("stat-memory").textContent = `${formatBytesGiB(data.memory.used_gb)} / ${formatBytesGiB(data.memory.total_gb)}`;
+      document.getElementById("stat-memory-note").textContent = `${data.memory.percent_used}% used`;
+      document.getElementById("stat-disk").textContent = `${data.disk.percent_used}% used`;
+      document.getElementById("stat-disk-note").textContent = `${data.disk.used} used of ${data.disk.total}`;
+      document.getElementById("stat-launcher").textContent = "Online";
+      document.getElementById("stat-host").textContent = data.hostname || "Unavailable";
+      document.getElementById("stat-ip").textContent = data.tailscale_ip || "Unavailable";
+      document.getElementById("stat-uptime").textContent = formatUptime(data.uptime_seconds);
+      document.getElementById("stat-load").textContent = Array.isArray(data.load_average)
+        ? data.load_average.join(" / ")
+        : "Unavailable";
+    }
+
+    async function loadStats() {
+      const cached = panelCacheGet("stats");
+      if (cached) applyStatsData(cached);
+      try {
+        const data = await fetchJson("/api/stats");
+        panelCacheSet("stats", data);
+        applyStatsData(data);
+      } catch (error) {
+        if (!cached) {
+          document.getElementById("stat-launcher").textContent = "Offline";
+          document.getElementById("stat-memory-note").textContent = "Launcher API unavailable";
+          document.getElementById("stat-disk-note").textContent = "Launcher API unavailable";
+          document.getElementById("stat-host").textContent = "Unavailable";
+          document.getElementById("stat-ip").textContent = "Unavailable";
+          document.getElementById("stat-uptime").textContent = "Unavailable";
+          document.getElementById("stat-load").textContent = "Unavailable";
+        }
+      }
+    }
+
+    function applyServicesData(data) {
+      const cards = Array.from(document.querySelectorAll(".tool-card[data-service-name]"));
+      const byName = new Map((Array.isArray(data.services) ? data.services : []).map((service) => [service.name, service]));
+      cards.forEach((card) => {
+        const service = byName.get(card.dataset.serviceName || "");
+        const status = card.querySelector("[data-tool-status]");
+        const detail = card.querySelector("[data-tool-detail]");
+        const online = Boolean(service && service.online);
+
+        card.classList.toggle("online", online);
+        card.classList.toggle("offline", Boolean(service) && !online);
+
+        if (detail && service && service.detail) {
+          detail.textContent = service.detail;
+        }
+
+        if (status) {
+          if (!service) {
+            status.innerHTML = `<div class="status-dot offline"></div><span>Not detected</span>`;
+          } else {
+            status.innerHTML = `<div class="status-dot ${online ? "online" : "offline"}"></div><span>${online ? "Online" : "Offline"}</span>`;
+          }
+        }
+      });
+    }
+
+    async function loadServices() {
+      const cached = panelCacheGet("services");
+      if (cached) applyServicesData(cached);
+      else {
+        const cards = Array.from(document.querySelectorAll(".tool-card[data-service-name]"));
+        cards.forEach((card) => {
+          card.classList.remove("online", "offline");
+          const status = card.querySelector("[data-tool-status]");
+          if (status) status.innerHTML = `<div class="status-dot"></div><span>Checking service</span>`;
+        });
+      }
+      try {
+        const data = await fetchJson("/api/services");
+        panelCacheSet("services", data);
+        applyServicesData(data);
+      } catch (error) {
+        if (!cached) {
+          const cards = Array.from(document.querySelectorAll(".tool-card[data-service-name]"));
+          cards.forEach((card) => {
+            card.classList.remove("online");
+            card.classList.add("offline");
+            const status = card.querySelector("[data-tool-status]");
+            if (status) status.innerHTML = `<div class="status-dot offline"></div><span>Service unavailable</span>`;
+          });
+        }
+      }
+    }
+
+    function renderNetworkDevices(data) {
+      const grid = document.getElementById("network-grid");
+      networkDevices = Array.isArray(data.devices) ? data.devices : [];
+      document.getElementById("network-count").textContent = `Devices: ${data.total || networkDevices.length}`;
+      document.getElementById("network-online").textContent = `Active: ${data.online || 0} · Standby: ${data.standby || 0}`;
+      document.getElementById("network-updated").textContent = `Updated: ${formatShortTime(data.scanned_at)}`;
+
+      if (!networkDevices.length) {
+        grid.innerHTML = `<div class="empty">No LAN devices found yet.</div>`;
+        return;
+      }
+
+      grid.innerHTML = networkDevices.map((device, index) => {
+        const status = getDeviceStatusState(device);
+        const dotClass = `status-dot ${status.kind}`;
+        const room = device.room ? `<div class="device-room">${escapeHtml(device.room)}</div>` : "";
+        const hostname = device.hostname ? `<div>Host: ${escapeHtml(device.hostname)}</div>` : "";
+        const mac = device.mac ? `<div>MAC: ${escapeHtml(device.mac)}</div>` : "";
+        const altIps = Array.isArray(device.alternate_ips) && device.alternate_ips.length
+          ? `<div>Also: ${escapeHtml(device.alternate_ips.join(", "))}</div>`
+          : "";
+        const tags = Array.isArray(device.tags) && device.tags.length
+          ? `<div class="device-tags">${device.tags.map((tag) => `<span class="device-tag">${escapeHtml(tag)}</span>`).join("")}</div>`
+          : "";
+        const sortId = escapeHtml(makeSortId("device", device.device_id || device.ip || index));
+        return `
+          <article class="device-card ${status.kind}" data-sort-id="${sortId}" onclick="openDeviceDrawer(${index})">
+            <div class="device-head">
+              <div>
+                <div class="device-type">${escapeHtml(prettyDeviceType(device.type))}</div>
+                <h3>${escapeHtml(device.name || device.ip)}</h3>
+              </div>
+              <div class="status-line">
+                <div class="${dotClass}"></div>
+                <span>${escapeHtml(status.label)}</span>
+              </div>
+            </div>
+            <div class="device-meta">
+              <div>${escapeHtml(device.ip)}</div>
+              <div>${escapeHtml(describeDeviceStatus(device))}</div>
+              ${hostname}
+              ${mac}
+              ${altIps}
+            </div>
+            ${room}
+            ${tags}
+            <div class="device-note">${escapeHtml(device.note || "")}</div>
+          </article>
+        `;
+      }).join("");
+      refreshSortableContainer(grid);
+
+      if (activeDeviceId && deviceDrawerIsOpen()) {
+        const freshDevice = findNetworkDevice(activeDeviceId);
+        if (freshDevice) {
+          fillDeviceDrawer(freshDevice);
+        } else {
+          closeDeviceDrawer();
+        }
+      }
+    }
+
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0
+      }).format(Number(value || 0));
+    }
+
+    function formatSignedMoney(value) {
+      const amount = Number(value || 0);
+      return `${amount >= 0 ? "+" : "-"}${formatMoney(Math.abs(amount))}`;
+    }
+
+    function budgetBar(value, max, color = "var(--blue)") {
+      const pct = max > 0 ? Math.max(6, Math.min((value / max) * 100, 100)) : 0;
+      return `<div style="height:6px;border-radius:999px;background:var(--line);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${color};border-radius:999px;"></div></div>`;
+    }
+
+    function renderBudgetPreview(data) {
+      budgetSnapshot = data;
+      const personal = data.personal || {};
+      const business = data.business || {};
+      const source = data.source || {};
+      const currentGap = Number(personal.rollup && personal.rollup.currentGap || 0);
+      const futureGap = Number(personal.rollup && personal.rollup.futureGap || 0);
+      const latestMonth = business.latestFullMonth && business.latestFullMonth.label
+        ? business.latestFullMonth.label
+        : (source.ledger && source.ledger.latestFullMonthLabel) || "Unavailable";
+
+      document.getElementById("budget-preview-updated").textContent = `Plan ${source.personalUpdatedAt || "unknown"} · ledger ${latestMonth}`;
+      document.getElementById("budget-preview-copy").textContent = currentGap < 0
+        ? `The household plan is currently short ${formatMoney(Math.abs(currentGap))} a month. Once the attorney payment ends, the plan flips to ${futureGap >= 0 ? formatMoney(futureGap) + " left over" : formatMoney(Math.abs(futureGap)) + " short"}.`
+        : `The household plan is currently positive by ${formatMoney(currentGap)} a month. June+ opens up to ${futureGap >= 0 ? formatMoney(futureGap) + " left over" : formatMoney(Math.abs(futureGap)) + " short"}.`;
+
+      document.getElementById("budget-stat-income").textContent = formatMoney(personal.income && personal.income.takeHomeMonthly || 0);
+      document.getElementById("budget-stat-current").textContent = formatMoney(personal.rollup && personal.rollup.monthlyCurrent || 0);
+      document.getElementById("budget-stat-current-note").textContent = currentGap < 0
+        ? `${formatMoney(Math.abs(currentGap))} short vs take-home`
+        : `${formatMoney(currentGap)} left over`;
+      document.getElementById("budget-stat-future").textContent = formatMoney(personal.rollup && personal.rollup.monthlyFuture || 0);
+      document.getElementById("budget-stat-future-note").textContent = futureGap < 0
+        ? `${formatMoney(Math.abs(futureGap))} short after May`
+        : `${formatMoney(futureGap)} left over after May`;
+      document.getElementById("budget-stat-business").textContent = latestMonth;
+      document.getElementById("budget-stat-business-note").textContent = business.latestFullMonth
+        ? `${formatSignedMoney(business.latestFullMonth.net)} net in ${latestMonth}`
+        : "No full business month available";
+
+      const planRows = Array.isArray(personal.sections) ? personal.sections.filter((section) => Number(section.amount || 0) > 0) : [];
+      const planMax = Math.max(...planRows.map((section) => Number(section.amount || 0)), 1);
+      document.getElementById("budget-plan-breakdown").innerHTML = planRows.map((section) => `
+        <div style="display:grid;gap:6px;">
+          <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;">
+            <span style="color:var(--text);font-weight:600;">${section.label}</span>
+            <span style="color:var(--muted);">${formatMoney(section.amount)}</span>
+          </div>
+          ${budgetBar(Number(section.amount || 0), planMax, section.id === "temporary" ? "var(--amber)" : "var(--blue)")}
+        </div>
+      `).join("") || '<div class="empty">No plan data loaded.</div>';
+
+      const variableRows = Array.isArray(personal.variableCategories) ? personal.variableCategories : [];
+      const variableMax = Math.max(...variableRows.map((section) => Number(section.amount || 0)), 1);
+      document.getElementById("budget-variable-breakdown").innerHTML = variableRows.map((section) => `
+        <div style="display:grid;gap:6px;">
+          <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;">
+            <span style="color:var(--text);font-weight:600;">${section.name}</span>
+            <span style="color:var(--muted);">${formatMoney(section.amount)}</span>
+          </div>
+          ${budgetBar(Number(section.amount || 0), variableMax, "var(--amber)")}
+        </div>
+      `).join("") || '<div class="empty">No variable categories loaded.</div>';
+
+      const topAccount = Array.isArray(business.topAccounts2025) && business.topAccounts2025.length ? business.topAccounts2025[0] : null;
+      document.getElementById("budget-business-breakdown").innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+          <div class="stat" style="padding:12px;">
+            <div class="label">2025 Revenue</div>
+            <div class="value" style="font-size:24px;">${formatMoney(business.year2025 && business.year2025.revenue || 0)}</div>
+          </div>
+          <div class="stat" style="padding:12px;">
+            <div class="label">2025 Expenses</div>
+            <div class="value" style="font-size:24px;">${formatMoney(business.year2025 && business.year2025.expenses || 0)}</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;">
+          <span style="color:var(--text);font-weight:600;">2025 net</span>
+          <span style="color:${business.year2025 && business.year2025.net >= 0 ? "var(--lime)" : "var(--red)"};font-weight:700;">${formatSignedMoney(business.year2025 && business.year2025.net || 0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;">
+          <span style="color:var(--text);font-weight:600;">Top spend account</span>
+          <span style="color:var(--muted);">${topAccount ? topAccount.name + " · " + formatMoney(topAccount.spending) : "Unavailable"}</span>
+        </div>
+      `;
+    }
+
+    async function fetchBudgetJson() {
+      const response = await fetch(`${launcherUrl("/api/budget-data")}?t=${Date.now()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function loadBudgetPreview() {
+      const cached = panelCacheGet("budget");
+      if (cached) renderBudgetPreview(cached);
+      try {
+        const data = await fetchBudgetJson();
+        panelCacheSet("budget", data);
+        renderBudgetPreview(data);
+      } catch (error) {
+        if (!cached) {
+          document.getElementById("budget-preview-updated").textContent = "Budget offline";
+          document.getElementById("budget-preview-copy").textContent = "The budget payload could not be loaded right now.";
+          document.getElementById("budget-plan-breakdown").innerHTML = '<div class="empty">Budget data unavailable.</div>';
+          document.getElementById("budget-variable-breakdown").innerHTML = '<div class="empty">Budget data unavailable.</div>';
+          document.getElementById("budget-business-breakdown").innerHTML = '<div class="empty">Budget data unavailable.</div>';
+        }
+      }
+    }
+
+    const ANALYTICS_API = window.PI_ANALYTICS_API || "";
+    const ANALYTICS_KEY = window.PI_ANALYTICS_KEY || localStorage.getItem("pi_analytics_key") || "";
+
+    function fmtDuration(sec) {
+      if (!sec || sec <= 0) return "0s";
+      if (sec < 60) return Math.round(sec) + "s";
+      if (sec < 3600) return Math.round(sec / 60) + "m";
+      return Math.round(sec / 3600 * 10) / 10 + "h";
+    }
+
+    function fmtPct(n) { return (n || 0).toFixed(0) + "%"; }
+
+    function analyticsBar(value, max, color) {
+      const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+      return `<div style="height:4px;border-radius:2px;background:var(--line);overflow:hidden;"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px;"></div></div>`;
+    }
+
+    async function analyticsFetch(path) {
+      if (!ANALYTICS_KEY) throw new Error("Analytics key missing");
+      const res = await fetch(`${ANALYTICS_API}${path}`, { headers: { "x-api-key": ANALYTICS_KEY } });
+      if (!res.ok) throw new Error("API " + res.status);
+      return res.json();
+    }
+
+    // --- Keyword data cache (5-min TTL) ---
+    const kwCache = new Map();
+    const KW_CACHE_TTL = 5 * 60 * 1000;
+
+    function kwCacheKey(domain, period) { return `${domain}::${period}`; }
+
+    function kwCacheGet(domain, period) {
+      const key = kwCacheKey(domain, period);
+      const entry = kwCache.get(key);
+      if (entry && (Date.now() - entry.ts < KW_CACHE_TTL)) return entry.data;
+      return null;
+    }
+
+    function kwCacheSet(domain, period, data) {
+      kwCache.set(kwCacheKey(domain, period), { data, ts: Date.now() });
+    }
+
+    function positionPill(pos) {
+      const p = Math.round(pos * 10) / 10;
+      let cls = "pos-20plus";
+      if (p <= 3) cls = "pos-1-3";
+      else if (p <= 10) cls = "pos-4-10";
+      else if (p <= 20) cls = "pos-11-20";
+      return `<span class="pos-pill ${cls}">${p.toFixed(1)}</span>`;
+    }
+
+    function renderKeywordData(data) {
+      // API returns: totalClicks, totalImpressions, avgCtr, avgPosition, queries[], topPages[]
+      const keywords = (data.queries || data.keywords || []).slice(0, 20);
+      const pages = (data.topPages || data.pages || []).slice(0, 10);
+      const maxClicks = keywords.length ? Math.max(...keywords.map(k => k.clicks || 0), 1) : 1;
+      const maxPageClicks = pages.length ? Math.max(...pages.map(p => p.clicks || 0), 1) : 1;
+
+      let html = '<div class="kw-expand-content">';
+
+      // Search Performance Summary
+      html += '<div class="kw-mini-stats">';
+      html += `<div class="kw-mini-stat"><div class="val">${(data.totalClicks || 0).toLocaleString()}</div><div class="lbl">Clicks</div></div>`;
+      html += `<div class="kw-mini-stat"><div class="val">${(data.totalImpressions || 0).toLocaleString()}</div><div class="lbl">Impressions</div></div>`;
+      html += `<div class="kw-mini-stat"><div class="val">${((data.avgCtr || 0) * 100).toFixed(1)}%</div><div class="lbl">Avg CTR</div></div>`;
+      html += `<div class="kw-mini-stat"><div class="val">${(data.avgPosition || 0).toFixed(1)}</div><div class="lbl">Avg Position</div></div>`;
+      html += '</div>';
+
+      // Top Keywords Table
+      if (keywords.length) {
+        html += '<div class="kw-table-wrap">';
+        html += '<div class="kw-table-title">Top Keywords</div>';
+        html += '<table class="kw-table" id=""><thead><tr>';
+        html += '<th data-sort="query">Query</th><th data-sort="clicks">Clicks</th><th data-sort="impressions">Impr</th><th data-sort="ctr">CTR</th><th data-sort="position">Position</th>';
+        html += '</tr></thead><tbody>';
+        keywords.forEach(k => {
+          const barW = maxClicks > 0 ? Math.min((k.clicks / maxClicks) * 100, 100) : 0;
+          html += '<tr>';
+          html += `<td class="query-col" title="${(k.query || '').replace(/"/g, '&quot;')}">${k.query || '(unknown)'}</td>`;
+          html += `<td class="clicks-cell"><div class="clicks-bar" style="width:${barW}%;background:var(--blue);"></div><span class="clicks-val">${(k.clicks || 0).toLocaleString()}</span></td>`;
+          html += `<td>${(k.impressions || 0).toLocaleString()}</td>`;
+          html += `<td>${((k.ctr || 0) * 100).toFixed(1)}%</td>`;
+          html += `<td>${positionPill(k.position || 0)}</td>`;
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+
+      // Top Pages Table
+      if (pages.length) {
+        html += '<div class="kw-table-wrap">';
+        html += '<div class="kw-table-title">Top Pages</div>';
+        html += '<table class="kw-table"><thead><tr>';
+        html += '<th>Page</th><th>Clicks</th><th>Impr</th><th>CTR</th><th>Position</th>';
+        html += '</tr></thead><tbody>';
+        pages.forEach(p => {
+          let pageDisplay = p.page || p.url || '/';
+          try { pageDisplay = new URL(pageDisplay).pathname; } catch {}
+          const barW = maxPageClicks > 0 ? Math.min((p.clicks / maxPageClicks) * 100, 100) : 0;
+          html += '<tr>';
+          html += `<td class="page-col" title="${pageDisplay.replace(/"/g, '&quot;')}">${pageDisplay}</td>`;
+          html += `<td class="clicks-cell"><div class="clicks-bar" style="width:${barW}%;background:var(--purple);"></div><span class="clicks-val">${(p.clicks || 0).toLocaleString()}</span></td>`;
+          html += `<td>${(p.impressions || 0).toLocaleString()}</td>`;
+          html += `<td>${((p.ctr || 0) * 100).toFixed(1)}%</td>`;
+          html += `<td>${positionPill(p.position || 0)}</td>`;
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+
+      if (!keywords.length && !pages.length) {
+        html += '<div class="kw-not-connected">No keyword data available for this period.</div>';
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    async function toggleKeywordExpand(domain, cardEl) {
+      const wrap = cardEl.querySelector('.kw-expand-wrap');
+      const inner = wrap.querySelector('.kw-expand-inner');
+      const chevron = cardEl.querySelector('.site-card-chevron');
+      const isOpen = wrap.classList.contains('open');
+
+      if (isOpen) {
+        wrap.classList.remove('open');
+        chevron.classList.remove('expanded');
+        saveExpandedState();
+        return;
+      }
+
+      chevron.classList.add('expanded');
+      wrap.classList.add('open');
+      saveExpandedState();
+
+      const period = document.getElementById("analytics-period").value;
+      const cached = kwCacheGet(domain, period);
+
+      if (cached) {
+        inner.innerHTML = renderKeywordData(cached);
+        return;
+      }
+
+      // Show loading spinner
+      inner.innerHTML = '<div class="kw-expand-content"><div class="kw-loading"><div class="spinner"></div>Loading keyword data...</div></div>';
+
+      try {
+        // Always use 28d for keywords — GSC data has a 2-3 day delay, shorter periods show empty
+        const data = await analyticsFetch(`/api/dashboard/keywords?domain=${domain}&period=28d`);
+        kwCacheSet(domain, "28d", data);
+        inner.innerHTML = renderKeywordData(data);
+      } catch (err) {
+        const msg = (err.message || '').includes('404') || (err.message || '').includes('not found')
+          ? '<div class="kw-expand-content"><div class="kw-not-connected">Not connected to Google Search Console</div></div>'
+          : '<div class="kw-expand-content"><div class="kw-error">Keywords unavailable</div></div>';
+        inner.innerHTML = msg;
+      }
+    }
+
+    // --- Persistent cache: show last data instantly, refresh in background ---
+    const ANALYTICS_CACHE_KEY = "pi_analytics_cache";
+    const ANALYTICS_EXPANDED_KEY = "pi_analytics_expanded";
+
+    function saveAnalyticsCache(period, data) {
+      try {
+        localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify({ period, data, ts: Date.now() }));
+      } catch {}
+    }
+
+    function loadAnalyticsCache() {
+      try {
+        const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return null;
+    }
+
+    function saveExpandedState() {
+      try {
+        const expanded = [];
+        document.querySelectorAll(".kw-expand-wrap.open").forEach(el => {
+          const card = el.closest("[data-domain]");
+          if (card) expanded.push(card.getAttribute("data-domain"));
+        });
+        localStorage.setItem(ANALYTICS_EXPANDED_KEY, JSON.stringify(expanded));
+      } catch {}
+    }
+
+    function getExpandedState() {
+      try {
+        return JSON.parse(localStorage.getItem(ANALYTICS_EXPANDED_KEY) || "[]");
+      } catch { return []; }
+    }
+
+    // Render analytics from cached or fresh data
+    function renderAnalyticsData(overview, sitesData, realtime) {
+      document.getElementById("a-views").textContent = (overview.totalPageViews || 0).toLocaleString();
+      document.getElementById("a-sessions").textContent = (overview.uniqueSessions || 0).toLocaleString();
+      document.getElementById("a-visitors").textContent = (overview.uniqueVisitors || 0).toLocaleString();
+      document.getElementById("a-bounce").textContent = fmtPct(overview.bounceRate);
+      document.getElementById("a-duration").textContent = fmtDuration(overview.avgSessionDurationSeconds);
+      document.getElementById("a-pps").textContent = (overview.avgPagesPerSession || 0).toFixed(1);
+      document.getElementById("analytics-updated").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+      // Top pages
+      const topPages = (overview.topPages || []).slice(0, 8);
+      const maxPageViews = topPages.length ? topPages[0].views : 1;
+      document.getElementById("a-top-pages").innerHTML = topPages.length
+        ? topPages.map(p => `<div><div style="display:flex;justify-content:space-between;color:var(--text);"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">${p.pathname || "/"}</span><span style="font-weight:600;flex-shrink:0;">${p.views}</span></div>${analyticsBar(p.views, maxPageViews, "var(--blue)")}</div>`).join("")
+        : '<div style="color:var(--muted);">No page data yet</div>';
+
+      // Top referrers
+      const topRefs = (overview.topReferrers || []).filter(r => r.referrer).slice(0, 6);
+      const maxRefVisits = topRefs.length ? topRefs[0].visits : 1;
+      document.getElementById("a-top-referrers").innerHTML = topRefs.length
+        ? topRefs.map(r => `<div><div style="display:flex;justify-content:space-between;color:var(--text);"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">${r.referrer}</span><span style="font-weight:600;flex-shrink:0;">${r.visits}</span></div>${analyticsBar(r.visits, maxRefVisits, "var(--purple)")}</div>`).join("")
+        : '<div style="color:var(--muted);">All direct traffic</div>';
+
+      // Realtime
+      if (realtime) {
+        document.getElementById("a-live-sessions").textContent = realtime.activeSessions || 0;
+        const liveEvents = (realtime.recentEvents || []).slice(0, 8);
+        document.getElementById("a-live-events").innerHTML = liveEvents.length
+          ? liveEvents.map(e => {
+            const t = new Date(e.createdAt || e.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+            const colors = { page_view: "var(--blue)", click: "var(--cyan)", error: "var(--red)", form_submit: "var(--lime)", scroll_depth: "var(--amber)" };
+            const dotColor = Object.entries(colors).find(([k]) => (e.event || "").includes(k))?.[1] || "var(--muted)";
+            return `<div style="display:flex;gap:8px;align-items:center;"><span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0;"></span><span style="color:var(--muted);">${t}</span><span style="color:var(--text);font-weight:500;">${e.event}</span><span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.domain} ${e.pathname || ""}</span></div>`;
+          }).join("")
+          : '<div style="color:var(--muted);">No recent activity</div>';
+      }
+    }
+
+    async function loadAnalytics() {
+      const period = document.getElementById("analytics-period").value;
+
+      // Show cached global stats instantly (no flash/buffer)
+      const cached = loadAnalyticsCache();
+      if (cached && cached.data && cached.period === period) {
+        const { overview, sitesData, realtime } = cached.data;
+        renderAnalyticsData(overview, sitesData, realtime);
+      }
+
+      try {
+        // Fetch all data in parallel
+        const [overview, sitesData, realtime, errors] = await Promise.all([
+          analyticsFetch(`/api/dashboard/overview?period=${period}`),
+          analyticsFetch("/api/dashboard/sites"),
+          analyticsFetch("/api/dashboard/realtime"),
+          analyticsFetch(`/api/dashboard/errors?period=${period}`)
+        ]);
+
+        // Render global stats + top pages + referrers + realtime
+        renderAnalyticsData(overview, sitesData, realtime);
+
+        // --- Per-site detailed cards ---
+        const sites = (sitesData.sites || sitesData || []).filter(s => s.domain && !s.domain.includes("test"));
+        const grid = document.getElementById("analytics-sites");
+
+        if (!sites.length) {
+          grid.innerHTML = '<div class="empty">No site data yet — events will appear as visitors browse your sites.</div>';
+          return;
+        }
+
+        // Fetch per-site overviews AND keywords in parallel
+        const sortedSites = sites.sort((a, b) => (b.totalEvents || 0) - (a.totalEvents || 0)).slice(0, 20);
+        const siteOverviews = await Promise.all(
+          sortedSites.map(async s => {
+            const [overview, kw] = await Promise.all([
+              analyticsFetch(`/api/dashboard/overview?period=${period}&domain=${s.domain}`).catch(() => ({})),
+              analyticsFetch(`/api/dashboard/keywords?domain=${s.domain}&period=28d`).catch(() => null)
+            ]);
+            return { ...s, ...overview, keywords: kw };
+          })
+        );
+
+        grid.innerHTML = siteOverviews.map((s, idx) => {
+          const pages = (s.topPages || []).slice(0, 5);
+          const refs = (s.topReferrers || []).filter(r => r.referrer).slice(0, 3);
+          const utms = (s.topUtmSources || []).slice(0, 3);
+          const maxPV = pages.length ? pages[0].views : 1;
+          const cardId = `site-card-${idx}`;
+
+          return `
+          <div id="${cardId}" data-domain="${s.domain}" style="background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:12px;">
+            <!-- Site header -->
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-weight:700;font-size:15px;color:var(--text);">${s.domain}</div>
+              <div style="font-size:11px;color:var(--muted);">Since ${new Date(s.firstSeen).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
+            </div>
+
+            <!-- Stats row -->
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+              <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--text);">${(s.totalPageViews || s.pageViews || 0).toLocaleString()}</div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Views</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--text);">${(s.uniqueSessions || 0).toLocaleString()}</div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Sessions</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--text);">${(s.uniqueVisitors || 0).toLocaleString()}</div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Visitors</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:${(s.bounceRate || 0) > 70 ? 'var(--red)' : 'var(--text)'};">${fmtPct(s.bounceRate)}</div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Bounce</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--text);">${fmtDuration(s.avgSessionDurationSeconds)}</div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">Avg Time</div>
+              </div>
+            </div>
+
+            <!-- Pages + Referrers side by side -->
+            <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:10px;">
+              <div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:6px;">Top Pages</div>
+                ${pages.length ? pages.map(p => `
+                  <div style="margin-bottom:4px;">
+                    <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%;color:var(--text);">${p.pathname || "/"}</span><span style="color:var(--muted);flex-shrink:0;">${p.views}</span></div>
+                    ${analyticsBar(p.views, maxPV, "var(--blue)")}
+                  </div>
+                `).join("") : '<div style="font-size:12px;color:var(--muted);">—</div>'}
+              </div>
+              <div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:6px;">Sources</div>
+                ${refs.length ? refs.map(r => `
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;color:var(--text);">${r.referrer}</span><span style="color:var(--muted);flex-shrink:0;">${r.visits}</span></div>
+                `).join("") : '<div style="font-size:12px;color:var(--muted);">Direct only</div>'}
+                ${utms.length ? '<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:8px 0 4px;">UTM Sources</div>' + utms.map(u => `
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:var(--text);">${u.source || u._id}</span><span style="color:var(--muted);">${u.sessions || u.count}</span></div>
+                `).join("") : ""}
+              </div>
+            </div>
+
+            <!-- Keywords (auto-loaded) -->
+            ${s.keywords && !s.keywords.error ? renderKeywordData(s.keywords) : s.keywords && s.keywords.error ? '<div style="font-size:12px;color:var(--muted);padding:8px 0;">GSC not connected</div>' : ''}
+          </div>`;
+        }).join("");
+
+        // Cache everything for instant reload
+        saveAnalyticsCache(period, { overview, sitesData, realtime, siteOverviews });
+
+      } catch (err) {
+        // Only show error if no cached data was displayed
+        if (!loadAnalyticsCache()) {
+          document.getElementById("analytics-updated").textContent = "Error";
+          document.getElementById("analytics-sites").innerHTML = `<div class="empty">Could not load analytics: ${err.message}</div>`;
+        }
+        console.error("[analytics]", err);
+      }
+    }
+
+    // Restore saved period
+    try {
+      const savedPeriod = localStorage.getItem("pi_analytics_period");
+      if (savedPeriod) document.getElementById("analytics-period").value = savedPeriod;
+    } catch {}
+
+    // Re-fetch when period changes
+    document.getElementById("analytics-period").addEventListener("change", () => {
+      kwCache.clear();
+      try { localStorage.setItem("pi_analytics_period", document.getElementById("analytics-period").value); } catch {}
+      loadAnalytics();
+    });
+
+    async function loadNetworkDevices() {
+      const grid = document.getElementById("network-grid");
+      const cached = panelCacheGet("network");
+      if (cached) {
+        renderNetworkDevices(cached);
+      } else {
+        grid.innerHTML = `<div class="empty">Scanning the network...</div>`;
+      }
+      try {
+        const data = await fetchJson("/api/network-devices");
+        panelCacheSet("network", data);
+        renderNetworkDevices(data);
+      } catch (error) {
+        if (!cached) {
+          document.getElementById("network-count").textContent = "Devices: unavailable";
+          document.getElementById("network-online").textContent = "Online: unavailable";
+          document.getElementById("network-updated").textContent = "Updated: offline";
+          grid.innerHTML = `<div class="empty">Could not reach the launcher API for network inventory.</div>`;
+        }
+      }
+    }
+
+    async function saveDeviceDetails(event) {
+      event.preventDefault();
+      const device = findNetworkDevice(activeDeviceId);
+      if (!device) {
+        setDrawerStatus("No device selected.", "error");
+        return;
+      }
+
+      const saveButton = document.getElementById("device-save");
+      saveButton.disabled = true;
+      setDrawerStatus("Saving...", "");
+      try {
+        await postJson("/api/network-devices/metadata", {
+          device_id: device.device_id,
+          custom_name: document.getElementById("device-custom-name").value,
+          room: document.getElementById("device-room").value,
+          tags: document.getElementById("device-tags").value.split(","),
+          user_note: document.getElementById("device-note").value
+        });
+        await loadNetworkDevices();
+        setDrawerStatus("Saved.", "ok");
+        setActionMessage("Device details updated.", "ok");
+      } catch (error) {
+        setDrawerStatus("Could not save device details.", "error");
+      } finally {
+        saveButton.disabled = false;
+      }
+    }
+
+    async function runDeviceControl(action, value) {
+      const device = findNetworkDevice(activeDeviceId);
+      if (!device) {
+        setControlStatus("No device selected.", "error");
+        return;
+      }
+
+      toggleControlButtons(true);
+      setControlStatus("Sending control...", "");
+      try {
+        const payload = {
+          device_id: device.device_id,
+          action
+        };
+        if (value != null) {
+          payload.value = value;
+        }
+
+        const data = await postJson("/api/network-devices/control", payload);
+        setControlStatus(data.message || "Control sent.", "ok");
+        setActionMessage(data.message || "Device control sent.", "ok");
+        await loadNetworkDevices();
+
+        const refreshed = findNetworkDevice(activeDeviceId);
+        if (refreshed) {
+          fillDeviceDrawer(refreshed);
+          setControlStatus(data.message || "Control sent.", "ok");
+        }
+      } catch (error) {
+        setControlStatus(error.message || "Could not send control.", "error");
+      } finally {
+        const current = findNetworkDevice(activeDeviceId);
+        if (current) {
+          renderDeviceControls(current);
+        } else {
+          toggleControlButtons(false);
+        }
+      }
+    }
+
+    async function launchPokeMMO() {
+      setActionMessage("Launching PokeMMO...", "");
+      try {
+        const data = await fetchJson("/launch-pokemmo");
+        setActionMessage(data.message || "PokeMMO launched.", "ok");
+      } catch (error) {
+        setActionMessage("PokeMMO launch failed.", "error");
+      }
+    }
+
+    async function openFirefox(url, title) {
+      setActionMessage(`Opening ${title} in Firefox...`, "");
+      try {
+        const encoded = encodeURIComponent(url);
+        const data = await fetchJson(`/open-firefox?url=${encoded}`);
+        setActionMessage(data.message || `${title} opened.`, "ok");
+      } catch (error) {
+        setActionMessage(`Could not open ${title}.`, "error");
+      }
+    }
+
+    async function openExternal(url, title) {
+      setActionMessage(`Opening ${title}...`, "");
+      try {
+        const encoded = encodeURIComponent(url);
+        const data = await fetchJson(`/open-url?url=${encoded}`);
+        setActionMessage(data.message || `${title} opened.`, "ok");
+      } catch (error) {
+        setActionMessage(`Could not open ${title}.`, "error");
+      }
+    }
+
+    async function openYouTubeDesktop() {
+      setActionMessage("Opening YouTube desktop mode...", "");
+      try {
+        const data = await fetchJson("/open-youtube-desktop");
+        setActionMessage(data.message || "YouTube opened.", "ok");
+      } catch (error) {
+        setActionMessage("Could not open YouTube.", "error");
+      }
+    }
+
+    async function openYouTubeMobile() {
+      setActionMessage("Opening YouTube mobile mode...", "");
+      try {
+        const data = await fetchJson("/open-youtube-mobile");
+        setActionMessage(data.message || "YouTube opened.", "ok");
+      } catch (error) {
+        setActionMessage("Could not open YouTube.", "error");
+      }
+    }
+
+    async function returnToDesktop() {
+      setActionMessage("Closing Chromium...", "");
+      try {
+        await fetchJson("/quit-browser");
+        setActionMessage("Returning to desktop.", "ok");
+      } catch (error) {
+        setActionMessage("Could not close Chromium.", "error");
+      }
+    }
+
+    applyTheme(getSavedTheme());
+    updateClock();
+    renderContinueWatching();
+    refreshSortableContainers();
+    setLayoutMode(false);
+
+    // Stagger initial loads: critical panels first, heavy panels lazy on scroll
+    // Phase 1: instant (local API, fast)
+    loadStats();
+    loadServices();
+    // Phase 2: 200ms (local API, heavier)
+    setTimeout(() => { loadCalendar(); loadGoogleAccounts(); }, 200);
+    // Phase 3: 500ms (external fetch)
+    setTimeout(() => { loadWeather(); loadRadarMap(); }, 500);
+
+    // Lazy-load heavy panels when they scroll into view
+    let budgetLoaded = false;
+    let networkLoaded = false;
+    let analyticsLoaded = false;
+    const lazyObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const id = entry.target.getAttribute("data-sort-id");
+        if (id === "layout-budget" && !budgetLoaded) {
+          budgetLoaded = true;
+          loadBudgetPreview();
+          setInterval(loadBudgetPreview, 600000);
+        }
+        if (id === "layout-network" && !networkLoaded) {
+          networkLoaded = true;
+          loadNetworkDevices();
+          setInterval(loadNetworkDevices, 120000);
+        }
+        if (id === "layout-analytics" && !analyticsLoaded) {
+          analyticsLoaded = true;
+          loadAnalytics();
+          setInterval(loadAnalytics, 120000);
+        }
+        lazyObserver.unobserve(entry.target);
+      });
+    }, { rootMargin: "200px" });
+    const budgetSection = document.querySelector('[data-sort-id="layout-budget"]');
+    const networkSection = document.querySelector('[data-sort-id="layout-network"]');
+    const analyticsSection = document.querySelector('[data-sort-id="layout-analytics"]');
+    if (budgetSection) lazyObserver.observe(budgetSection);
+    if (networkSection) lazyObserver.observe(networkSection);
+    if (analyticsSection) lazyObserver.observe(analyticsSection);
+
+    setInterval(updateClock, 30000);
+    setInterval(loadStats, 30000);
+    setInterval(loadServices, 30000);
+    setInterval(renderContinueWatching, 30000);
+    setInterval(loadCalendar, 300000);
+    setInterval(loadGoogleAccounts, 300000);
+    setInterval(loadRadarMap, 300000);
+
+    window.addEventListener("storage", (event) => {
+      if (event.key === STORAGE_KEYS.WATCH_HISTORY || event.key === STORAGE_KEYS.PREFERRED_SERVER) {
+        renderContinueWatching();
+      }
+      if (event.key === STORAGE_KEYS.THEME) {
+        applyTheme(getSavedTheme());
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!layoutEditMode) return;
+      const insideSortable = event.target.closest("[data-sort-id]");
+      const insideLayoutControls = event.target.closest(".layout-controls");
+      if (!insideSortable || insideLayoutControls) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+
+    window.addEventListener("keydown", (event) => {
+      if (!BACK_KEYS.has(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (deviceDrawerIsOpen()) {
+        closeDeviceDrawer();
+        return;
+      }
+      if (overlayIsOpen()) {
+        closeOverlay();
+        setActionMessage("Closed current view.", "ok");
+      } else {
+        returnToDesktop();
+      }
+    }, true);
+
+    window.addEventListener("message", (event) => {
+      if (!event.data || event.data.source !== "gog-bridge") return;
+      if (event.data.type === "calendar-auth-complete") {
+        loadGoogleAccounts();
+        loadCalendar(Boolean(event.data.ok));
+      }
+      if (event.data.type === "google-auth-complete") {
+        loadGoogleAccounts();
+        if (event.data.account === PRIMARY_GOOGLE_ACCOUNT) {
+          loadCalendar(Boolean(event.data.ok));
+        }
+      }
+    });
+  </script>
+<script src="/assets/fullscreen-fix.js?v=20260513181500"></script></body>
+</html>

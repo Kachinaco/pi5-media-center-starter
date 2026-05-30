@@ -1,0 +1,60 @@
+html, body, #root {
+  background: #000;
+}
+
+iframe:fullscreen,
+iframe:-webkit-full-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  z-index: 2147483647 !important;
+  background: #000 !important;
+}
+
+iframe::backdrop,
+iframe:fullscreen::backdrop,
+iframe:-webkit-full-screen::backdrop {
+  background: #000 !important;
+}
+
+
+body.simplstream-fill-player iframe:fullscreen,
+body.simplstream-fill-player iframe:-webkit-full-screen {
+  transform: scale(1.18) !important;
+  transform-origin: center center !important;
+}
+
+
+body.simplstream-keep-player-fullscreen {
+  overflow: hidden !important;
+  background: #000 !important;
+}
+
+body.simplstream-keep-player-fullscreen iframe {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  z-index: 2147483647 !important;
+  background: #000 !important;
+}
+
+body.simplstream-keep-player-fullscreen.simplstream-fill-player iframe {
+  transform: scale(1.18) !important;
+  transform-origin: center center !important;
+}

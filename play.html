@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>SimplStream Player</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; font-family: system-ui, sans-serif; }
+iframe { width:100%; height:100%; border:none; display:block; }
+
+/* Source/control bar */
+.ctrl-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; gap: 6px; padding: 8px 14px;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  border-bottom: 1px solid #1a1a1a;
+  transition: opacity 0.4s;
+}
+.ctrl-bar.hidden { opacity: 0; pointer-events: none; }
+.ctrl-btn {
+  background: #111; border: 1px solid #1e1e1e; color: #888;
+  padding: 5px 13px; border-radius: 5px; cursor: pointer; font-size: 0.78rem;
+  white-space: nowrap;
+}
+.ctrl-btn:hover { color: #fff; border-color: #444; }
+.ctrl-btn.active { background: #4A90D9; border-color: #4A90D9; color: #fff; }
+.ctrl-sep { width: 1px; height: 20px; background: #222; flex-shrink: 0; }
+.ctrl-title {
+  color: #ccc; font-size: 0.85rem; font-weight: 600;
+  margin-left: 8px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ctrl-home {
+  background: #1e1e2e; border: 1px solid #3a3a50; color: #fff;
+  padding: 5px 14px; border-radius: 5px; cursor: pointer; font-size: 0.78rem;
+  text-decoration: none; white-space: nowrap;
+}
+.ctrl-home:hover { background: #2a2a3e; }
+
+/* Mouse-catch zones */
+.mouse-zone { position: fixed; top: 0; left: 0; right: 0; height: 8px; z-index: 200; }
+
+/* Auto-next countdown overlay */
+.autonext-countdown {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.88); flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.autonext-countdown.show { display: flex; }
+.cd-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.cd-sub { font-size: 1rem; color: #aaa; margin-bottom: 20px; }
+.cd-timer { font-size: 3rem; font-weight: 800; color: #4A90D9; margin-bottom: 28px; }
+.cd-actions { display: flex; gap: 12px; }
+.cd-play {
+  background: #fff; color: #000; border: none; padding: 12px 32px;
+  border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer;
+}
+.cd-play:hover { background: #e0e0e0; }
+.cd-cancel {
+  background: rgba(255,255,255,0.15); color: #fff; border: none;
+  padding: 12px 28px; border-radius: 8px; font-size: 1rem; cursor: pointer;
+}
+.cd-cancel:hover { background: rgba(255,255,255,0.25); }
+</style>
+<link rel="stylesheet" href="/assets/fullscreen-fix.css?v=20260510141232">
+</head>
+<body>
+
+<div class="mouse-zone" onmouseenter="showBar()" onmousemove="showBar()"></div>
+
+<div class="ctrl-bar hidden" id="ctrlBar">
+  <a class="ctrl-home" href="/dashboard.html">Home</a>
+  <div class="ctrl-sep"></div>
+  <span id="srcBtns"></span>
+  <div class="ctrl-sep" id="epSep" style="display:none"></div>
+  <span id="epBtns" style="display:none">
+    <button class="ctrl-btn" onclick="prevEp()">Prev</button>
+    <button class="ctrl-btn" onclick="nextEp()">Next</button>
+  </span>
+  <span class="ctrl-title" id="playerTitle"></span>
+</div>
+
+<iframe id="player-frame" allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *" sandbox="allow-same-origin allow-scripts allow-forms allow-presentation" referrerpolicy="no-referrer" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>
+
+<div class="autonext-countdown" id="autoNextCD">
+  <div class="cd-title">Next Episode</div>
+  <div class="cd-sub" id="cdSub"></div>
+  <div class="cd-timer" id="cdTimer">10</div>
+  <div class="cd-actions">
+    <button class="cd-play" onclick="playNextNow()">Play Now</button>
+    <button class="cd-cancel" onclick="cancelAutoNext()">Cancel</button>
+  </div>
+</div>
+
+<script>
+var TMDB_KEY = "REPLACE_WITH_TMDB_KEY";
+var TMDB_API = "https://api.themoviedb.org/3";
+
+var SOURCES = {
+  _addTime: function(url, t, sourceId) {
+    if (t <= 30) return url;
+    var key = sourceId === "vidfast" ? "startAt" : "t";
+    try {
+      var parsed = new URL(url);
+      parsed.searchParams.delete(key === "startAt" ? "t" : "startAt");
+      parsed.searchParams.set(key, String(Math.floor(t)));
+      return parsed.toString();
+    } catch (e) {
+      return url + (url.indexOf("?") >= 0 ? "&" : "?") + key + "=" + Math.floor(t);
+    }
+  },
+  _replayStart: function(sourceId) {
+    return sourceId === "vidfast" ? "startAt=0" : "t=0";
+  },
+  videasy: function(id, type, s, e) { return type === "tv"
+    ? "https://player.videasy.net/tv/" + id + "/" + s + "/" + e + (shouldStartProviderAtZero(type) ? "?color=3B82F6&autoplay=true&autoPlay=true&" + SOURCES._replayStart("videasy") : "?color=3B82F6&autoplay=true&autoPlay=true")
+    : "https://player.videasy.net/movie/" + id + (replayMode ? "?color=3B82F6&autoplay=true&autoPlay=true&" + SOURCES._replayStart("videasy") : "?color=3B82F6&autoplay=true&autoPlay=true"); },
+  vidsrc: function(id, type, s, e) { return type === "tv"
+    ? "https://vsembed.ru/embed/tv?tmdb=" + id + "&season=" + s + "&episode=" + e + (shouldStartProviderAtZero(type) ? "&autoplay=true&autoPlay=true&" + SOURCES._replayStart("vidsrc") : "&autoplay=true&autoPlay=true")
+    : "https://vsembed.ru/embed/movie?tmdb=" + id + (replayMode ? "&autoplay=true&autoPlay=true&" + SOURCES._replayStart("vidsrc") : "&autoplay=true&autoPlay=true"); },
+  "111movies": function(id, type, s, e) { return type === "tv"
+    ? "https://111movies.net/tv/" + id + "/" + s + "/" + e + (shouldStartProviderAtZero(type) ? "?autoplay=true&autoPlay=true&" + SOURCES._replayStart("111movies") : "?autoplay=true&autoPlay=true")
+    : "https://111movies.net/movie/" + id + (replayMode ? "?autoplay=true&autoPlay=true&" + SOURCES._replayStart("111movies") : "?autoplay=true&autoPlay=true"); },
+  vidlink: function(id, type, s, e) { return type === "tv"
+    ? "https://vidlink.pro/tv/" + id + "/" + s + "/" + e + (shouldStartProviderAtZero(type) ? "?autoplay=true&autoPlay=true&" + SOURCES._replayStart("vidlink") : "?autoplay=true&autoPlay=true")
+    : "https://vidlink.pro/movie/" + id + (replayMode ? "?autoplay=true&autoPlay=true&" + SOURCES._replayStart("vidlink") : "?autoplay=true&autoPlay=true"); },
+  vidfast: function(id, type, s, e) {
+    if (type !== "tv") return "https://vidfast.pro/movie/" + id + (replayMode ? "?theme=4A90D9&autoPlay=true&autoplay=true&" + SOURCES._replayStart("vidfast") : "?theme=4A90D9&autoPlay=true&autoplay=true");
+    var params = "theme=4A90D9&nextButton=true&autoPlay=true&autoplay=true";
+    if (shouldStartProviderAtZero(type)) params += "&" + SOURCES._replayStart("vidfast");
+    return "https://vidfast.pro/tv/" + id + "/" + s + "/" + e + "?" + params;
+  }
+};
+
+var PLAYER_SANDBOX = "allow-same-origin allow-scripts allow-forms allow-presentation";
+var UNSANDBOXED_STREAM_SOURCES = {
+  videasy: true,
+  vidsrc: true,
+  "111movies": true,
+  vidlink: true,
+  vidfast: true
+};
+var SOURCE_LABELS = {
+  videasy: "Videasy", vidsrc: "VidSrc", "111movies": "111Movies",
+  vidlink: "VidLink", vidfast: "VidFast"
+};
+var SOURCE_FALLBACK_ORDER = ["vidlink", "vidsrc", "111movies", "videasy", "vidfast"];
+
+function normalizeSourceId(value) {
+  if (value === "vsembed") return "vidsrc";
+  return SOURCE_LABELS[value] ? value : "vidsrc";
+}
+
+// Parse URL params
+var params = new URLSearchParams(window.location.search);
+var id = params.get("id") || "246";
+var type = params.get("type") === "tv" ? "tv" : "movie";
+var season = Number(params.get("season") || "1") || 1;
+var episode = Number(params.get("episode") || "1") || 1;
+var source = normalizeSourceId(params.get("source") || "vidfast");
+var title = params.get("title") || "SimplStream Player";
+var poster = params.get("poster") || "";
+var playbackMode = params.get("mode") === "replay" ? "replay" : "continue";
+var replayMode = playbackMode === "replay";
+
+var START_TV_EPISODES_FROM_BEGINNING = true;
+var savedPosition = Number(params.get("t") || "0") || 0;
+if ((START_TV_EPISODES_FROM_BEGINNING && type === "tv") || replayMode) savedPosition = 0;
+var lastPosition = savedPosition > 30 ? savedPosition : 0;
+var lastDuration = 0;
+var LOCAL_LAUNCHER_BASE = "http://127.0.0.1:8899";
+var livePlaybackSyncInFlight = false;
+var seasonCache = {};
+var showDetailsCache = null;
+var replayHasFreshProgress = false;
+var replayModeStartedAt = Date.now();
+var sourceLoadedAt = 0;
+var sourceHadProgress = false;
+var sourceFallbackInFlight = false;
+var providerDriftReloadAt = 0;
+var playbackStallState = {
+  lastPositionFloor: -1,
+  stallSamples: 0,
+  recoveryAttempts: 0,
+  recoveryCooldownUntil: 0
+};
+var STALL_RETRY_LIMIT = 2;
+var STALL_SAMPLE_LIMIT = 4;
+var STALL_MIN_POSITION_SECONDS = 20;
+var STALL_MIN_BUFFER_AHEAD_SECONDS = 1.0;
+var STALL_RECOVERY_COOLDOWN_MS = 15000;
+
+function shouldStartProviderAtZero(mediaType) {
+  return replayMode || (START_TV_EPISODES_FROM_BEGINNING && mediaType === "tv");
+}
+
+function isNearComplete(position, duration) {
+  if (!duration || duration <= 0 || !position || position <= 0) return false;
+  return position >= duration * 0.9 || (duration - position) <= 90;
+}
+
+function loadSavedProgressForCurrentEntry() {
+  if (replayMode) return { position: 0, duration: 0 };
+  if (START_TV_EPISODES_FROM_BEGINNING && type === "tv") return { position: 0, duration: 0 };
+  try {
+    var arr = JSON.parse(localStorage.getItem("simplstream_watch_history") || "[]");
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].tmdb_id == id && arr[i].media_type === type) {
+        if (type === "tv" && (arr[i].season != season || arr[i].episode != episode)) continue;
+        var position = Number(arr[i].position || 0);
+        var duration = Number(arr[i].duration || 0);
+        if (isNearComplete(position, duration)) return { position: 0, duration: duration };
+        return {
+          position: position > 30 ? position : 0,
+          duration: duration > 0 ? duration : 0
+        };
+      }
+    }
+  } catch(e) {}
+  return { position: 0, duration: 0 };
+}
+
+// Load saved position from watch history
+(function loadSavedPosition() {
+  var saved = loadSavedProgressForCurrentEntry();
+  if (saved.position > 30) savedPosition = saved.position;
+  if (saved.duration > 0) lastDuration = saved.duration;
+})();
+
+var player = document.getElementById("player-frame");
+
+function updatePlayerChrome() {
+  document.title = title;
+  var label = type === "tv" ? title + " \u2014 S" + season + " E" + episode : title;
+  document.getElementById("playerTitle").textContent = label;
+  buildSrcBtns();
+  updateUrl();
+}
+
+function applySandbox(sourceId) {
+  if (UNSANDBOXED_STREAM_SOURCES[sourceId]) {
+    player.removeAttribute("sandbox");
+  } else {
+    player.setAttribute("sandbox", PLAYER_SANDBOX);
+  }
+  player.setAttribute("referrerpolicy", "no-referrer");
+}
+
+function loadSource() {
+  updatePlayerChrome();
+  applySandbox(source);
+  sourceLoadedAt = Date.now();
+  sourceHadProgress = false;
+  var srcUrl = SOURCES[source](id, type, season, episode);
+  if (isNearComplete(savedPosition, lastDuration)) savedPosition = 0;
+  if (savedPosition > 30) { srcUrl = SOURCES._addTime(srcUrl, savedPosition, source); savedPosition = 0; }
+  player.src = srcUrl;
+}
+
+function nextFallbackSource(currentSource) {
+  currentSource = normalizeSourceId(currentSource);
+  var start = SOURCE_FALLBACK_ORDER.indexOf(currentSource);
+  for (var i = 1; i <= SOURCE_FALLBACK_ORDER.length; i++) {
+    var candidate = SOURCE_FALLBACK_ORDER[(start + i + SOURCE_FALLBACK_ORDER.length) % SOURCE_FALLBACK_ORDER.length];
+    if (candidate !== currentSource && SOURCE_LABELS[candidate]) return candidate;
+  }
+  return null;
+}
+
+function switchToFallbackSource(reason, force) {
+  if (sourceFallbackInFlight) return false;
+  if (source === "vidfast" && !force) {
+    console.info("[SimplStream] Keeping VidFast selected; fallback suppressed", { reason: reason || "fallback" });
+    return false;
+  }
+  var nextSource = nextFallbackSource(source);
+  if (!nextSource) return false;
+  sourceFallbackInFlight = true;
+  console.info("[SimplStream] Switching stream provider", { from: source, to: nextSource, reason: reason || "fallback" });
+  source = nextSource;
+  try { localStorage.setItem("simplstream_preferred_server", source); } catch (e) {}
+  savedPosition = lastPosition > 30 ? lastPosition : 0;
+  loadSource();
+  syncHistory();
+  setTimeout(function() { sourceFallbackInFlight = false; }, 15000);
+  return true;
+}
+
+function reloadSelectedProvider(reason) {
+  if (source !== "vidfast") return false;
+  return reloadCurrentProvider(reason);
+}
+
+function reloadCurrentProvider(reason) {
+  var now = Date.now();
+  if (now - providerDriftReloadAt < 12000) return false;
+  providerDriftReloadAt = now;
+  try { localStorage.setItem("simplstream_preferred_server", source); } catch (e) {}
+  savedPosition = lastPosition > 30 ? lastPosition : 0;
+  console.info("[SimplStream] Reloading selected provider", {
+    source: source,
+    reason: reason || "provider-reload",
+    position: savedPosition
+  });
+  loadSource();
+  syncHistory();
+  return true;
+}
+
+function isLikelyPlaybackStall(current) {
+  if (!current) return false;
+  if (current.ended) return false;
+  if (current.paused) return false;
+
+  var currentTime = Number(current.current_time || 0);
+  if (!currentTime || currentTime <= STALL_MIN_POSITION_SECONDS) return false;
+
+  if (current.media_error) return true;
+
+  var readyState = Number(current.ready_state);
+  var networkState = Number(current.network_state);
+  var bufferAhead = Number(current.buffer_ahead);
+  var hasBufferAhead = Number.isFinite(bufferAhead);
+
+  if (Number.isFinite(networkState) && networkState === 2) {
+    return !hasBufferAhead || bufferAhead < STALL_MIN_BUFFER_AHEAD_SECONDS;
+  }
+  if (Number.isFinite(readyState) && readyState < 3) {
+    return true;
+  }
+  return false;
+}
+
+function resetPlaybackStallState() {
+  playbackStallState.stallSamples = 0;
+  playbackStallState.recoveryAttempts = 0;
+  playbackStallState.lastPositionFloor = -1;
+  playbackStallState.recoveryCooldownUntil = 0;
+}
+
+function trackPlaybackForStallRecovery(current) {
+  if (!current || !Number.isFinite(Number(current.current_time))) {
+    resetPlaybackStallState();
+    return;
+  }
+
+  if (!isLikelyPlaybackStall(current)) {
+    if (playbackStallState.stallSamples || playbackStallState.recoveryAttempts) {
+      resetPlaybackStallState();
+    }
+    return;
+  }
+
+  var now = Date.now();
+  var positionFloor = Math.floor(Number(current.current_time));
+  if (playbackStallState.lastPositionFloor !== positionFloor) {
+    playbackStallState.lastPositionFloor = positionFloor;
+    playbackStallState.stallSamples = 1;
+    playbackStallState.recoveryAttempts = 0;
+  } else {
+    playbackStallState.stallSamples += 1;
+  }
+
+  if (playbackStallState.stallSamples < STALL_SAMPLE_LIMIT) {
+    return;
+  }
+
+  if (now < playbackStallState.recoveryCooldownUntil) return;
+
+  playbackStallState.stallSamples = 0;
+  playbackStallState.recoveryCooldownUntil = now + STALL_RECOVERY_COOLDOWN_MS;
+
+  if (playbackStallState.recoveryAttempts >= STALL_RETRY_LIMIT) {
+    playbackStallState.recoveryAttempts = 0;
+    if (switchToFallbackSource("buffer-stall-fallback", true)) {
+      return;
+    }
+    return;
+  }
+
+  playbackStallState.recoveryAttempts += 1;
+  savedPosition = positionFloor > 30 ? positionFloor : (lastPosition > 30 ? Math.floor(lastPosition) : 0);
+  reloadCurrentProvider("buffer-stall-reload");
+}
+
+function updateUrl() {
+  var p = new URLSearchParams({ id: id, type: type, season: season, episode: episode, source: source, title: title });
+  if (replayMode) p.set("mode", "replay");
+  history.replaceState(null, "", "?" + p.toString());
+}
+
+function buildSrcBtns() {
+  var keys = Object.keys(SOURCE_LABELS);
+  var html = "";
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    html += '<button class="ctrl-btn' + (k === source ? ' active' : '') + '" onclick="switchSrc(\'' + k + '\')">' + SOURCE_LABELS[k] + '</button>';
+  }
+  document.getElementById("srcBtns").innerHTML = html;
+  var showEp = type === "tv";
+  document.getElementById("epSep").style.display = showEp ? "" : "none";
+  document.getElementById("epBtns").style.display = showEp ? "" : "none";
+}
+
+function switchSrc(s) {
+  source = normalizeSourceId(s);
+  try { localStorage.setItem("simplstream_preferred_server", source); } catch (e) {}
+  loadSource();
+}
+
+function prevEp() {
+  if (episode > 1) {
+    episode--;
+    var saved = loadSavedProgressForCurrentEntry();
+    savedPosition = saved.position;
+    lastPosition = saved.position;
+    lastDuration = saved.duration;
+    loadSource();
+    syncHistory();
+  }
+}
+
+function loadEpisode(next, forceStart) {
+  if (!next) return;
+  clearAutoNextUi();
+  if (replayMode && forceStart) {
+    playbackMode = "continue";
+    replayMode = false;
+    replayModeStartedAt = Date.now();
+    replayHasFreshProgress = false;
+  }
+  season = Number(next.season || season) || season;
+  episode = Number(next.episode || episode) || episode;
+  if (forceStart) {
+    savedPosition = 0;
+    lastPosition = 0;
+    lastDuration = 0;
+  } else {
+    var saved = loadSavedProgressForCurrentEntry();
+    savedPosition = saved.position;
+    lastPosition = saved.position;
+    lastDuration = saved.duration;
+  }
+  loadSource();
+  syncHistory();
+}
+
+function markFreshReplayProgress(position) {
+  if (!replayMode || replayHasFreshProgress) return;
+  if (Number(position || 0) > 5) replayHasFreshProgress = true;
+}
+
+function replayAutoNextAllowed() {
+  if (!replayMode) return true;
+  return replayHasFreshProgress || (Date.now() - replayModeStartedAt) > 120000;
+}
+
+function nextEp() {
+  resolveNextEpisode().then(function(next) {
+    if (next) loadEpisode(next, true);
+  });
+}
+
+// Control bar auto-hide
+var barTimer = null;
+function showBar() {
+  var bar = document.getElementById("ctrlBar");
+  bar.classList.remove("hidden");
+  clearTimeout(barTimer);
+  barTimer = setTimeout(function() { bar.classList.add("hidden"); }, 3000);
+}
+document.addEventListener("mousemove", showBar);
+
+// Auto-next episode
+var autoNextTimer = null;
+var countdown = 10;
+var pendingNextEpisode = null;
+var autoNextResolving = false;
+var autoNextSuppressedKey = "";
+
+function triggerAutoNext() {
+  if (type !== "tv") return;
+  var key = season + ":" + episode;
+  if (autoNextResolving || pendingNextEpisode || autoNextSuppressedKey === key) return;
+  autoNextResolving = true;
+  resolveNextEpisode().then(function(next) {
+    autoNextResolving = false;
+    if (!next || autoNextSuppressedKey === key) return;
+    pendingNextEpisode = next;
+    playNextNow();
+  }).catch(function() {
+    autoNextResolving = false;
+  });
+}
+
+function playNextNow() {
+  var next = pendingNextEpisode;
+  if (next) {
+    loadEpisode(next, true);
+    return;
+  }
+  clearAutoNextUi();
+  nextEp();
+}
+
+function cancelAutoNext() {
+  autoNextSuppressedKey = season + ":" + episode;
+  clearAutoNextUi();
+}
+
+function clearAutoNextUi() {
+  clearInterval(autoNextTimer);
+  autoNextTimer = null;
+  pendingNextEpisode = null;
+  document.getElementById("autoNextCD").classList.remove("show");
+}
+
+function getSeasonDetails(seasonNumber) {
+  seasonNumber = Number(seasonNumber) || 1;
+  if (seasonCache[seasonNumber]) return Promise.resolve(seasonCache[seasonNumber]);
+  var url = TMDB_API + "/tv/" + encodeURIComponent(id) + "/season/" + seasonNumber + "?api_key=" + TMDB_KEY;
+  return fetch(url).then(function(r) {
+    if (!r.ok) throw new Error("season lookup failed");
+    return r.json();
+  }).then(function(data) {
+    seasonCache[seasonNumber] = data;
+    return data;
+  });
+}
+
+function getShowDetails() {
+  if (showDetailsCache) return Promise.resolve(showDetailsCache);
+  var url = TMDB_API + "/tv/" + encodeURIComponent(id) + "?api_key=" + TMDB_KEY;
+  return fetch(url).then(function(r) {
+    if (!r.ok) throw new Error("show lookup failed");
+    return r.json();
+  }).then(function(data) {
+    showDetailsCache = data;
+    return data;
+  });
+}
+
+function isAiredEpisode(ep) {
+  if (!ep || !ep.episode_number) return false;
+  if (!ep.air_date) return false;
+  return new Date(ep.air_date + "T00:00:00").getTime() <= Date.now();
+}
+
+function firstAiredEpisode(seasonDetails) {
+  var eps = ((seasonDetails && seasonDetails.episodes) || [])
+    .filter(isAiredEpisode)
+    .sort(function(a, b) { return Number(a.episode_number) - Number(b.episode_number); });
+  return eps.length ? eps[0] : null;
+}
+
+function resolveNextEpisode() {
+  if (type !== "tv") return Promise.resolve(null);
+  var currentSeason = Number(season) || 1;
+  var currentEpisode = Number(episode) || 1;
+  return getSeasonDetails(currentSeason).then(function(seasonDetails) {
+    var eps = ((seasonDetails && seasonDetails.episodes) || [])
+      .filter(function(ep) { return isAiredEpisode(ep) && Number(ep.episode_number) > currentEpisode; })
+      .sort(function(a, b) { return Number(a.episode_number) - Number(b.episode_number); });
+    if (eps.length) {
+      return {
+        season: currentSeason,
+        episode: Number(eps[0].episode_number),
+        name: eps[0].name || ""
+      };
+    }
+    return getShowDetails().then(function(showDetails) {
+      var seasons = ((showDetails && showDetails.seasons) || [])
+        .filter(function(s) { return Number(s.season_number) > currentSeason && Number(s.season_number) > 0 && Number(s.episode_count || 0) > 0; })
+        .sort(function(a, b) { return Number(a.season_number) - Number(b.season_number); });
+      function checkSeason(index) {
+        if (index >= seasons.length) return null;
+        var nextSeason = Number(seasons[index].season_number);
+        return getSeasonDetails(nextSeason).then(function(nextSeasonDetails) {
+          var ep = firstAiredEpisode(nextSeasonDetails);
+          if (ep) {
+            return {
+              season: nextSeason,
+              episode: Number(ep.episode_number),
+              name: ep.name || ""
+            };
+          }
+          return checkSeason(index + 1);
+        }).catch(function() {
+          return checkSeason(index + 1);
+        });
+      }
+      return checkSeason(0);
+    });
+  }).catch(function() {
+    return null;
+  });
+}
+
+function maybeTriggerAutoNextFromProgress() {
+  if (type !== "tv" || !lastDuration || !lastPosition) return;
+  var remaining = Number(lastDuration) - Number(lastPosition);
+  if (remaining >= 0 && remaining <= 5) triggerAutoNext();
+}
+
+function clearPendingAutoNextIfProviderAdvanced() {
+  if (!pendingNextEpisode) return;
+  if (Number(pendingNextEpisode.season) === Number(season) && Number(pendingNextEpisode.episode) === Number(episode)) {
+    clearAutoNextUi();
+  }
+}
+
+// Listen for provider postMessage indicating video ended
+window.addEventListener("message", function(e) {
+  try {
+    var d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+    if (!d) return;
+    // Track playback position from provider messages
+    if (d.currentTime !== undefined) lastPosition = Number(d.currentTime) || lastPosition;
+    if (d.time !== undefined) lastPosition = Number(d.time) || lastPosition;
+    if (d.position !== undefined) lastPosition = Number(d.position) || lastPosition;
+    if (d.progress && d.progress.currentTime) lastPosition = Number(d.progress.currentTime) || lastPosition;
+    if (lastPosition > 0) sourceHadProgress = true;
+    markFreshReplayProgress(lastPosition);
+    if (d.duration !== undefined && d.duration > 0) lastDuration = Number(d.duration);
+    if (d.progress && d.progress.duration) lastDuration = Number(d.progress.duration) || lastDuration;
+    maybeTriggerAutoNextFromProgress();
+
+    var ended = (
+      d.event === "ended" || d.event === "end" || d.event === "complete" ||
+      d.event === "video_ended" || d.type === "ended" || d.type === "end" ||
+      d.action === "ended" || d.action === "next" || d.playerEvent === "ended" ||
+      (d.event === "player" && d.data === "ended") ||
+      (d.info && d.info.playerState === 0)
+    );
+    if (ended && type === "tv" && replayAutoNextAllowed()) triggerAutoNext();
+  } catch(ex) {
+    if (typeof e.data === "string") {
+      var s = e.data.toLowerCase();
+      if ((s.indexOf("ended") >= 0 || s.indexOf("complete") >= 0 || s === "next") && type === "tv" && replayAutoNextAllowed())
+        triggerAutoNext();
+    }
+  }
+});
+
+// Watch history sync: the launcher API is the source of truth.
+function syncHistory() {
+  fetch(LOCAL_LAUNCHER_BASE + "/api/watch-history?t=" + Date.now())
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .catch(function() { return []; })
+    .then(function(arr) {
+      if (!Array.isArray(arr)) arr = [];
+      var now = new Date().toISOString();
+      var idx = -1;
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i].tmdb_id == id && arr[i].media_type === type) { idx = i; break; }
+      }
+      var existing = idx >= 0 ? arr[idx] : null;
+      var shouldPreserveExistingPosition = !(replayMode && !replayHasFreshProgress);
+      var row = {
+        id: existing ? existing.id : "play-" + id + "-" + Date.now(),
+        profile_id: existing ? existing.profile_id : "default",
+        tmdb_id: Number(id),
+        media_type: type,
+        title: title,
+        poster_path: poster || (existing ? existing.poster_path : null),
+        last_watched: now,
+        season: type === "tv" ? season : undefined,
+        episode: type === "tv" ? episode : undefined,
+        source: source,
+        position: lastPosition > 0 ? lastPosition : (shouldPreserveExistingPosition && existing ? Number(existing.position || 0) : 0),
+        duration: lastDuration > 0 ? lastDuration : (existing ? Number(existing.duration || 0) : 0),
+        created_at: existing ? existing.created_at : now
+      };
+      if (idx >= 0) arr[idx] = row; else arr.push(row);
+      // Write back to launcher API (which writes watch-history.json)
+      fetch(LOCAL_LAUNCHER_BASE + "/api/watch-history", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(arr), keepalive: true
+      }).catch(function() {});
+      // Also sync localStorage for library.html compatibility
+      try { localStorage.setItem("simplstream_watch_history", JSON.stringify(arr)); } catch(e) {}
+    });
+}
+
+function applyLivePlaybackState(payload) {
+  var result = { matched: false, stateChanged: false };
+  if (!payload || !payload.active || !payload.current) return result;
+  var current = payload.current;
+  if (Number(current.tmdb_id) !== Number(id) || current.media_type !== type) return result;
+  if (replayMode && !replayHasFreshProgress && type === "tv") {
+    var staleSeason = Number(current.season || season) || season;
+    var staleEpisode = Number(current.episode || episode) || episode;
+    if (staleSeason !== season || staleEpisode !== episode) return result;
+  }
+  result.matched = true;
+
+  var nextSeason = type === "tv" ? (Number(current.season || season) || season) : season;
+  var nextEpisode = type === "tv" ? (Number(current.episode || episode) || episode) : episode;
+  var nextSource = normalizeSourceId(current.source || source);
+  if (source === "vidfast" && nextSource !== source) {
+    var driftPosition = Number(current.current_time || 0);
+    if (driftPosition > 0) {
+      lastPosition = driftPosition;
+      markFreshReplayProgress(lastPosition);
+    }
+    if (current.duration != null && Number(current.duration) > 0) lastDuration = Number(current.duration);
+    else if (current.saved_progress && Number(current.saved_progress.duration) > 0) lastDuration = Number(current.saved_progress.duration);
+    result.stateChanged = reloadSelectedProvider("provider-drift:" + nextSource);
+    return result;
+  }
+  if (type === "tv" && nextSeason !== season) { season = nextSeason; result.stateChanged = true; }
+  if (type === "tv" && nextEpisode !== episode) { episode = nextEpisode; result.stateChanged = true; }
+  if (nextSource !== source) { source = nextSource; result.stateChanged = true; }
+
+  if (current.title) title = current.title;
+  var hasLivePosition = current.current_time != null && Number(current.current_time) > 0;
+  if (hasLivePosition) {
+    if (!replayMode || replayHasFreshProgress) {
+      lastPosition = Number(current.current_time);
+      markFreshReplayProgress(lastPosition);
+    }
+  } else if (!replayMode && !(START_TV_EPISODES_FROM_BEGINNING && type === "tv") && current.saved_progress && Number(current.saved_progress.watched) > 0) {
+    lastPosition = Number(current.saved_progress.watched);
+  }
+
+  if (current.duration != null && Number(current.duration) > 0) lastDuration = Number(current.duration);
+  else if (current.saved_progress && Number(current.saved_progress.duration) > 0) lastDuration = Number(current.saved_progress.duration);
+  if (result.stateChanged) clearPendingAutoNextIfProviderAdvanced();
+  if (hasLivePosition && !current.paused && (!replayMode || replayHasFreshProgress)) maybeTriggerAutoNextFromProgress();
+  trackPlaybackForStallRecovery(current);
+
+  if (result.stateChanged) updatePlayerChrome();
+  return result;
+}
+
+function syncFromLivePlayback(forceHistoryWrite) {
+  if (livePlaybackSyncInFlight) return Promise.resolve({ matched: false, stateChanged: false });
+  livePlaybackSyncInFlight = true;
+  return fetch(LOCAL_LAUNCHER_BASE + "/api/current-playback")
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(payload) {
+      var result = applyLivePlaybackState(payload);
+      if (result.matched && (forceHistoryWrite || result.stateChanged)) syncHistory();
+      return result;
+    })
+    .catch(function() {
+      return { matched: false, stateChanged: false };
+    })
+    .then(function(result) {
+      livePlaybackSyncInFlight = false;
+      return result;
+    }, function(error) {
+      livePlaybackSyncInFlight = false;
+      throw error;
+    });
+}
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape" || e.key === "BrowserBack" || e.key === "GoBack" || e.key === "Backspace") {
+    e.preventDefault();
+    window.location.href = "/dashboard.html";
+    return;
+  }
+});
+
+// Detect when a provider can positively identify that playback moved.
+var weSetSrc = false;
+var origLoadSource = loadSource;
+loadSource = function() {
+  weSetSrc = true;
+  origLoadSource();
+  setTimeout(function() { weSetSrc = false; }, 2000);
+};
+
+player.addEventListener("load", function() {
+  if (weSetSrc) return; // we triggered this, ignore
+  // Provider iframes often navigate internally during startup. Only trust the
+  // live playback endpoint when it can positively identify the new episode.
+  if (type === "tv") {
+    syncFromLivePlayback(true).then(function(result) {
+      if (result.matched) return;
+      syncHistory();
+    });
+  }
+});
+
+// Save position periodically and on exit
+setInterval(function() { if (!document.hidden) syncFromLivePlayback(false); }, 10000);
+setInterval(function() { if (lastPosition > 0) syncHistory(); }, 30000);
+window.addEventListener("focus", function() { syncFromLivePlayback(true); });
+document.addEventListener("visibilitychange", function() {
+  if (!document.hidden) syncFromLivePlayback(true);
+});
+window.addEventListener("beforeunload", function() { if (lastPosition > 0) syncHistory(); });
+window.addEventListener("pagehide", function() { if (lastPosition > 0) syncHistory(); });
+
+// Init
+loadSource();
+showBar();
+syncHistory();
+syncFromLivePlayback(false);
+</script>
+<script src="/assets/fullscreen-fix.js?v=20260523145900"></script></body>
+</html>

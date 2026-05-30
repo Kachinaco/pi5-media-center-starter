@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pi Home TV</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #171620;
+      --panel: rgba(31, 29, 46, 0.76);
+      --panel-strong: rgba(31, 29, 46, 0.9);
+      --line: rgba(232, 228, 255, 0.16);
+      --text: #f4f1ff;
+      --soft: #d8d3ed;
+      --muted: #aaa4c4;
+      --peach: #ea9a97;
+      --gold: #f6c177;
+      --green: #a6d189;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      color: var(--text);
+      background: var(--bg);
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      padding: 18px;
+      user-select: none;
+    }
+
+    .screen {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 276px;
+      grid-template-rows: minmax(0, 1fr) 150px;
+      gap: 12px;
+    }
+
+    .panel {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .photo-hero {
+      position: relative;
+      grid-column: 1;
+      grid-row: 1;
+      background: #11101a;
+    }
+
+    .photo-frame {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      z-index: 1;
+      background:
+        radial-gradient(circle at 22% 18%, rgba(246, 193, 119, 0.28), transparent 32%),
+        radial-gradient(circle at 78% 34%, rgba(166, 209, 137, 0.2), transparent 30%),
+        linear-gradient(135deg, #171620 0%, #2b2838 48%, #101722 100%);
+      background-size: 100% 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+      filter: saturate(1.04) contrast(1.02);
+      transition: opacity 240ms ease;
+    }
+
+    .photo-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      background:
+        linear-gradient(90deg, rgba(17, 16, 26, 0.2), rgba(17, 16, 26, 0) 38%, rgba(17, 16, 26, 0) 72%, rgba(17, 16, 26, 0.16)),
+        linear-gradient(180deg, rgba(17, 16, 26, 0.03), rgba(17, 16, 26, 0.18));
+      pointer-events: none;
+    }
+
+    .clock-card {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      z-index: 4;
+      width: min(252px, calc(100% - 36px));
+      padding: 12px 14px;
+      border: 1px solid rgba(232, 228, 255, 0.16);
+      border-radius: 16px;
+      background: rgba(20, 19, 30, 0.62);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(10px);
+    }
+
+    .eyebrow,
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin-top: 8px;
+      font-size: 24px;
+      line-height: 0.96;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .date {
+      margin-top: 6px;
+      color: var(--soft);
+      font-size: 15px;
+      line-height: 1.1;
+    }
+
+    .clock {
+      margin-top: 8px;
+      font-size: 38px;
+      line-height: 0.92;
+      font-weight: 300;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rail {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      display: grid;
+      grid-template-rows: 112px 222px auto;
+      gap: 12px;
+      min-height: 0;
+      align-content: start;
+    }
+
+    .weather,
+    .today,
+    .status {
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .weather {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+
+    .temp {
+      font-size: 46px;
+      line-height: 0.95;
+      font-weight: 300;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .condition,
+    .note {
+      color: var(--soft);
+      font-size: 14px;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .today {
+      grid-template-rows: auto auto minmax(0, 1fr);
+      align-content: start;
+    }
+
+    .today-date {
+      font-size: 54px;
+      line-height: 0.9;
+      font-weight: 250;
+      color: var(--gold);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .today-month {
+      color: var(--text);
+      font-size: 23px;
+      line-height: 1;
+      font-weight: 750;
+    }
+
+    .week-strip {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 5px;
+      align-self: end;
+    }
+
+    .week-day {
+      min-width: 0;
+      display: grid;
+      gap: 5px;
+      justify-items: center;
+      padding: 8px 4px;
+      border: 1px solid rgba(232, 228, 255, 0.1);
+      border-radius: 11px;
+      background: rgba(17, 16, 26, 0.36);
+    }
+
+    .week-day span:first-child {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .week-day span:last-child {
+      font-size: 17px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .week-day.today-dot {
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--peach), var(--gold));
+      color: #1f1d2e;
+      font-weight: 850;
+    }
+
+    .week-day.today-dot span {
+      color: #1f1d2e;
+    }
+
+    .status {
+      align-content: start;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .status > .status-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      height: auto;
+    }
+
+    .stat {
+      min-width: 0;
+      min-height: 62px;
+      padding: 9px;
+      border: 1px solid rgba(232, 228, 255, 0.1);
+      border-radius: 12px;
+      background: rgba(17, 16, 26, 0.36);
+    }
+
+    .value {
+      margin-top: 3px;
+      font-size: 17px;
+      line-height: 1;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bottom {
+      grid-column: 1;
+      grid-row: 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .recent {
+      padding: 11px 15px;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .panel-head {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-title {
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 750;
+    }
+
+    .pill {
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 10px;
+      color: var(--soft);
+      background: rgba(31, 29, 46, 0.82);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .recent-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .recent-card {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 10px;
+      padding: 7px;
+      border: 1px solid rgba(232, 228, 255, 0.12);
+      border-radius: 14px;
+      background: rgba(31, 29, 46, 0.62);
+    }
+
+    .recent-card.no-poster {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .poster {
+      width: 58px;
+      height: 72px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(17, 16, 26, 0.7);
+    }
+
+    .poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .recent-copy {
+      min-width: 0;
+      display: grid;
+      align-content: center;
+      gap: 7px;
+    }
+
+    .recent-title {
+      color: var(--text);
+      font-size: 17px;
+      line-height: 1.08;
+      font-weight: 750;
+      letter-spacing: 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    @media (min-width: 1500px) {
+      body {
+        padding: 24px;
+      }
+
+      .screen {
+        grid-template-columns: minmax(0, 1fr) 340px;
+        grid-template-rows: minmax(0, 1fr) 184px;
+        gap: 16px;
+      }
+
+      .rail,
+      .bottom {
+        gap: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <section class="panel photo-hero">
+      <div id="photo-frame" class="photo-frame"></div>
+      <div class="clock-card">
+        <div class="eyebrow">Pi Home</div>
+        <h1 id="greeting">Good morning.</h1>
+        <div id="date" class="date">Tuesday, May 26</div>
+        <div id="clock" class="clock">--:--</div>
+      </div>
+    </section>
+
+    <aside class="rail">
+      <section class="panel weather">
+        <div>
+          <div class="label">Weather</div>
+          <div class="panel-title">Weather</div>
+          <div id="condition" class="condition">Loading</div>
+        </div>
+        <div id="temp" class="temp">-- F</div>
+      </section>
+
+      <section class="panel today">
+        <div>
+          <div class="label">Today</div>
+          <div id="today-date" class="today-date">26</div>
+        </div>
+        <div>
+          <div id="today-month" class="today-month">May 2026</div>
+          <div id="today-weekday" class="note">Tuesday</div>
+        </div>
+        <div id="week-strip" class="week-strip"></div>
+      </section>
+
+      <section class="panel status">
+        <div class="status-grid">
+          <div class="stat">
+            <div class="label">Photos</div>
+            <div id="photo-count" class="value">Loading</div>
+          </div>
+          <div class="stat">
+            <div class="label">Services</div>
+            <div id="service-value" class="value">Checking</div>
+          </div>
+          <div class="stat">
+            <div class="label">TV</div>
+            <div class="value">Living TV</div>
+          </div>
+          <div class="stat">
+            <div class="label">Playback</div>
+            <div id="playing-title" class="value">Idle</div>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <section class="bottom">
+      <section class="panel recent">
+        <div class="panel-head">
+          <div>
+            <div class="label">Recent</div>
+            <div class="panel-title">Recently Watched</div>
+          </div>
+          <div id="updated" class="pill">Updating</div>
+        </div>
+        <div id="recent-grid" class="recent-grid"></div>
+      </section>
+
+    </section>
+  </main>
+
+  <script>
+    const TIME_ZONE = "America/Phoenix";
+    const POSTER_BASE = "https://image.tmdb.org/t/p/w342";
+
+    function el(id) {
+      return document.getElementById(id);
+    }
+
+    function setText(id, text) {
+      const node = el(id);
+      if (node) node.textContent = text;
+    }
+
+    async function getJson(url) {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`${response.status} ${url}`);
+      return response.json();
+    }
+
+    function phoenixParts(date = new Date()) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: TIME_ZONE,
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        hourCycle: "h23"
+      }).formatToParts(date).reduce((result, part) => {
+        if (part.type !== "literal") result[part.type] = part.value;
+        return result;
+      }, {});
+      return {
+        year: Number(parts.year),
+        month: Number(parts.month),
+        day: Number(parts.day),
+        hour: Number(parts.hour)
+      };
+    }
+
+    function phoenixDate(date = new Date()) {
+      const parts = phoenixParts(date);
+      return new Date(parts.year, parts.month - 1, parts.day);
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const parts = phoenixParts(now);
+      const greeting = parts.hour < 12 ? "Good morning." : parts.hour < 18 ? "Good afternoon." : "Good evening.";
+      const today = phoenixDate(now);
+      setText("greeting", greeting);
+      setText("clock", new Intl.DateTimeFormat("en-US", {
+        timeZone: TIME_ZONE,
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(now));
+      setText("date", new Intl.DateTimeFormat("en-US", {
+        timeZone: TIME_ZONE,
+        weekday: "long",
+        month: "long",
+        day: "numeric"
+      }).format(now));
+      setText("today-date", String(today.getDate()));
+      setText("today-month", today.toLocaleDateString("en-US", { month: "long", year: "numeric" }));
+      setText("today-weekday", today.toLocaleDateString("en-US", { weekday: "long" }));
+      renderWeek(today);
+    }
+
+    function renderWeek(today) {
+      const strip = el("week-strip");
+      if (!strip) return;
+      const start = new Date(today);
+      start.setDate(today.getDate() - today.getDay());
+      const days = [];
+      for (let index = 0; index < 7; index += 1) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        const isToday = date.toDateString() === today.toDateString();
+        days.push(`
+          <div class="week-day${isToday ? " today-dot" : ""}">
+            <span>${date.toLocaleDateString("en-US", { weekday: "short" })}</span>
+            <span>${date.getDate()}</span>
+          </div>
+        `);
+      }
+      strip.innerHTML = days.join("");
+    }
+
+    let photoIndex = 0;
+    let photoTimer = null;
+    let photoList = [];
+    let failedPhotos = new Set();
+
+    function setFramePhoto(src) {
+      const frame = el("photo-frame");
+      if (!frame) return;
+      const probe = new Image();
+      probe.onload = () => {
+        frame.style.backgroundImage = `url("${src}")`;
+      };
+      probe.onerror = () => {
+        failedPhotos.add(src);
+        if (photoList.length > failedPhotos.size) {
+          photoIndex = (photoIndex + 1) % photoList.length;
+          showPhoto(photoIndex);
+        }
+      };
+      probe.src = src;
+    }
+
+    function preloadPhoto(index) {
+      if (!photoList.length) return;
+      const image = new Image();
+      image.src = photoList[index % photoList.length];
+    }
+
+    function showPhoto(index) {
+      if (!photoList.length) return;
+      const src = photoList[index % photoList.length];
+      if (failedPhotos.has(src) && photoList.length > failedPhotos.size) {
+        photoIndex = (index + 1) % photoList.length;
+        showPhoto(photoIndex);
+        return;
+      }
+      setFramePhoto(src);
+      preloadPhoto(index + 1);
+    }
+
+    async function loadPhotos() {
+      try {
+        const manifest = await getJson("/assets/slideshow-tv/manifest.json");
+        const photos = Array.isArray(manifest) ? manifest.filter(Boolean) : [];
+        if (!photos.length) throw new Error("No photos");
+        photoList = photos;
+        setText("photo-count", `${photos.length} photos`);
+        if (photoTimer) clearInterval(photoTimer);
+        photoIndex = 0;
+        showPhoto(photoIndex);
+        photoTimer = setInterval(() => {
+          photoIndex = (photoIndex + 1) % photoList.length;
+          showPhoto(photoIndex);
+        }, 7000);
+      } catch (error) {
+        setText("photo-count", "Offline");
+      }
+    }
+
+    async function loadWeather() {
+      try {
+        const data = await getJson("https://wttr.in/?format=j1");
+        const current = data.current_condition && data.current_condition[0];
+        if (!current) throw new Error("No weather");
+        const desc = current.weatherDesc && current.weatherDesc[0] ? current.weatherDesc[0].value.trim() : "Current conditions";
+        setText("temp", `${current.temp_F} F`);
+        setText("condition", desc);
+      } catch (error) {
+        setText("condition", "Weather offline");
+      }
+    }
+
+    async function loadServices() {
+      try {
+        const data = await getJson("/api/services");
+        const services = Array.isArray(data.services) ? data.services : [];
+        const online = services.filter((service) => service.online);
+        setText("service-value", `${online.length}/${services.length || 4} online`);
+      } catch (error) {
+        setText("service-value", "Unknown");
+      }
+    }
+
+    async function loadPlayback() {
+      try {
+        const data = await getJson("/api/current-playback");
+        if (!data.active || !data.current) {
+          setText("playing-title", "Idle");
+          return;
+        }
+        const current = data.current;
+        setText("playing-title", current.paused ? "Paused" : "Playing");
+      } catch (error) {
+        setText("playing-title", "Unknown");
+      }
+    }
+
+    function recentMeta(item) {
+      if (item.media_type === "tv") return `S${item.season || "-"} E${item.episode || "-"}`;
+      return item.media_type === "movie" ? "Movie" : "Recently watched";
+    }
+
+    async function loadRecent() {
+      const grid = el("recent-grid");
+      if (!grid) return;
+      try {
+        const items = await getJson("/launcher/api/watch-history");
+        const recent = Array.isArray(items) ? items.slice(0, 2) : [];
+        setText("recent-count", `${recent.length} shown`);
+        if (!recent.length) {
+          grid.innerHTML = `<div class="stat"><div class="value">Nothing watched yet</div></div>`;
+          return;
+        }
+        grid.innerHTML = recent.map((item) => {
+          const poster = item.poster_path ? `${POSTER_BASE}${item.poster_path}` : "";
+          const title = String(item.title || "Untitled").replace(/[&<>"']/g, (char) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "'": "&#39;"
+          })[char]);
+          return `
+            <article class="recent-card${poster ? "" : " no-poster"}">
+              ${poster ? `<div class="poster"><img src="${poster}" alt=""></div>` : ""}
+              <div class="recent-copy">
+                <div class="recent-title">${title}</div>
+                <div class="note">${recentMeta(item)}</div>
+              </div>
+            </article>
+          `;
+        }).join("");
+      } catch (error) {
+        setText("recent-count", "Offline");
+        grid.innerHTML = `<div class="stat"><div class="value">Recent unavailable</div></div>`;
+      }
+    }
+
+    function setUpdated() {
+      setText("updated", `Updated ${new Intl.DateTimeFormat("en-US", {
+        timeZone: TIME_ZONE,
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(new Date())}`);
+    }
+
+    async function refresh() {
+      await Promise.allSettled([loadWeather(), loadServices(), loadPlayback(), loadRecent()]);
+      setUpdated();
+    }
+
+    updateClock();
+    loadPhotos();
+    refresh();
+    setInterval(updateClock, 1000);
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

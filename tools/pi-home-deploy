@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE=${PI_HOME_ENV_FILE:-"$HOME/.config/pi-home/pi-home.env"}
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+fi
+
+SOURCE_ROOT=${PI_HOME_SOURCE_ROOT:-"$HOME/repos/pi5-media-center"}
+LIVE_ROOT=${PI_HOME_LIVE_ROOT:-"$HOME/pi-home-live"}
+DATA_DIR=${PI_HOME_DATA_DIR:-"$HOME/.local/share/pi-home"}
+
+cd "$SOURCE_ROOT"
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Refusing to deploy with uncommitted source changes." >&2
+  git status --short >&2
+  exit 1
+fi
+
+"$SOURCE_ROOT/tools/pi-home-snapshot" >/dev/null
+
+mkdir -p "$LIVE_ROOT"
+rsync -a --delete \
+  --exclude='.git/' \
+  --exclude='_archive/' \
+  --exclude='backups/' \
+  --exclude='tools/' \
+  --exclude='analytics-config.js' \
+  --exclude='watch-history.json' \
+  --exclude='budget-data.json' \
+  --exclude='assets/slideshow-tv/' \
+  --exclude='*.bak' \
+  --exclude='*.bak-*' \
+  --exclude='*.bak_*' \
+  --exclude='*.tmp' \
+  "$SOURCE_ROOT/" "$LIVE_ROOT/"
+
+mkdir -p "$DATA_DIR"
+rm -f "$LIVE_ROOT/analytics-config.js" "$LIVE_ROOT/watch-history.json" "$LIVE_ROOT/budget-data.json"
+[[ -f "$DATA_DIR/watch-history.json" ]] || printf "[]\n" > "$DATA_DIR/watch-history.json"
+[[ -f "$DATA_DIR/budget-data.json" ]] || printf "{}\n" > "$DATA_DIR/budget-data.json"
+
+sudo nginx -t
+sudo systemctl reload nginx
+
+PI_HOME_SOURCE_ROOT="$SOURCE_ROOT" PI_HOME_LIVE_ROOT="$LIVE_ROOT" "$SOURCE_ROOT/tools/pi-home-check"

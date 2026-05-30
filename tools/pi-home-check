@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE=${PI_HOME_ENV_FILE:-"$HOME/.config/pi-home/pi-home.env"}
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+fi
+
+ROOT=${PI_HOME_SOURCE_ROOT:-${PI_HOME_ROOT:-"$HOME/repos/pi5-media-center"}}
+LIVE_ROOT=${PI_HOME_LIVE_ROOT:-"$HOME/pi-home-live"}
+STATIC_PORT=${PI_HOME_PORT:-8888}
+LAUNCHER_PORT=${PI_HOME_LAUNCHER_PORT:-8899}
+
+cd "$ROOT"
+
+section() { printf "\n=== %s ===\n" "$1"; }
+
+section "git source"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git branch --show-current || true
+  git status --short || true
+else
+  printf "not_a_git_checkout\n"
+fi
+
+section "shell syntax"
+for file in tools/*; do
+  [[ -f "$file" && ! "$file" =~ \.js$ ]] && bash -n "$file"
+done
+
+section "javascript syntax"
+for file in tools/launcher.js assets/fullscreen-fix.js assets/index-lZoP8-8J.js; do
+  if [[ -f "$file" ]]; then
+    node --check "$file"
+  fi
+done
+
+section "static file references"
+PI_HOME_LIVE_ROOT="$LIVE_ROOT" python3 - <<'PY'
+from html.parser import HTMLParser
+from pathlib import Path
+import os
+
+root = Path.cwd()
+live_root = Path(os.environ["PI_HOME_LIVE_ROOT"])
+html_files = [Path(p) for p in ["dashboard.html", "library.html", "play.html", "index.html", "dashboard-tv.html", "nhl-network.html"] if Path(p).exists()]
+missing = []
+runtime_local = {
+    "analytics-config.js",
+    "watch-history.json",
+    "budget-data.json",
+}
+
+class Parser(HTMLParser):
+    def __init__(self, source):
+        super().__init__()
+        self.source = source
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        for key in ("src", "href"):
+            value = attrs.get(key)
+            if not value or value.startswith(("http://", "https://", "mailto:", "tel:", "#", "javascript:")):
+                continue
+            if value.startswith(("/launcher", "/calendar")):
+                continue
+            path = value.split("?", 1)[0].split("#", 1)[0]
+            if not path or path == "/":
+                continue
+            target = root / path.lstrip("/") if path.startswith("/") else self.source.parent / path
+            live_target = live_root / path.lstrip("/") if path.startswith("/") else live_root / str((self.source.parent / path).as_posix())
+            if not target.exists() and path.lstrip("/") in runtime_local:
+                continue
+            if not target.exists():
+                display = target.relative_to(root) if target.is_relative_to(root) else target
+                missing.append(f"{self.source}:{key}={value} -> {display}")
+
+for html in html_files:
+    parser = Parser(html)
+    parser.feed(html.read_text(errors="ignore"))
+
+css = Path("dashboard.css").read_text(errors="ignore") if Path("dashboard.css").exists() else ""
+if "\npx;" in css:
+    missing.append("dashboard.css contains bare px; fragment")
+if css.count("{") != css.count("}"):
+    missing.append("dashboard.css brace mismatch: open=%d close=%d" % (css.count("{"), css.count("}")))
+
+if missing:
+    print("FAILED")
+    for item in missing:
+        print(item)
+    raise SystemExit(1)
+print(f"checked {len(html_files)} html files")
+PY
+
+section "nginx"
+if command -v nginx >/dev/null 2>&1; then
+  sudo nginx -t
+else
+  printf "nginx_not_installed\n"
+fi
+
+section "local endpoints"
+if curl -fsS "http://127.0.0.1:${STATIC_PORT}/dashboard.html" >/dev/null; then
+  printf "dashboard_ok\n"
+else
+  printf "dashboard_unavailable\n"
+fi
+if curl -fsS "http://127.0.0.1:${STATIC_PORT}/" >/dev/null; then
+  printf "simplstream_ok\n"
+else
+  printf "simplstream_unavailable\n"
+fi
+if curl -fsS "http://127.0.0.1:${LAUNCHER_PORT}/api/status" | head -c 1000; then
+  printf "\nlauncher_ok\n"
+else
+  printf "launcher_unavailable\n"
+fi
+
+section "deploy roots"
+printf "source=%s\n" "$ROOT"
+printf "live=%s\n" "$LIVE_ROOT"
+if [[ -d "$LIVE_ROOT" ]]; then
+  test -f "$LIVE_ROOT/dashboard.html" && test -f "$LIVE_ROOT/assets/fullscreen-fix.js"
+  printf "live_root_ok\n"
+else
+  printf "live_root_missing\n"
+fi

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE=${PI_HOME_ENV_FILE:-"$HOME/.config/pi-home/pi-home.env"}
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+fi
+
+ROOT=${PI_HOME_LIVE_ROOT:-${PI_HOME_ROOT:-"$HOME/pi-home-live"}}
+ARCHIVE_DIR=${PI_HOME_ARCHIVE_DIR:-"$HOME/pi-home-archives"}
+ts=$(date +%Y%m%d-%H%M%S)
+
+mkdir -p "$ARCHIVE_DIR"
+dest="$ARCHIVE_DIR/pi-home-live-$ts.tar.gz"
+if [[ ! -e "$ROOT" ]]; then
+  printf "snapshot_skipped_missing_root=%s\n" "$ROOT"
+  exit 0
+fi
+
+tar --exclude=.git -czf "$dest" -C "$(dirname "$ROOT")" "$(basename "$ROOT")"
+ls -lh "$dest"
+printf "snapshot=%s\n" "$dest"

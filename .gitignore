@@ -1,0 +1,21 @@
+# Local cleanup/archive snapshots
+_archive/
+backups/
+*.disabled-*
+*.bak
+*.bak-*
+*.bak_*
+*.tmp
+
+# Runtime/local data generated on the Pi
+analytics-config.js
+watch-history.json
+budget-data.json
+
+# Dependency/build/cache folders
+node_modules/
+.cache/
+dist/
+build/
+.DS_Store
+*.bak*
