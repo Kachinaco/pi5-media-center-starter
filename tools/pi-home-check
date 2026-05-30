@@ -47,9 +47,7 @@ live_root = Path(os.environ["PI_HOME_LIVE_ROOT"])
 html_files = [Path(p) for p in ["dashboard.html", "library.html", "play.html", "index.html", "dashboard-tv.html", "nhl-network.html"] if Path(p).exists()]
 missing = []
 runtime_local = {
-    "analytics-config.js",
     "watch-history.json",
-    "budget-data.json",
 }
 
 class Parser(HTMLParser):

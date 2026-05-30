@@ -9,7 +9,7 @@ It includes:
 - Deploy, snapshot, and health-check scripts
 - A one-command installer for a fresh Raspberry Pi OS setup
 
-It intentionally does not include personal photos, watch history, analytics secrets, budget data, device metadata, or private network details.
+It intentionally does not include personal photos, watch history, site traffic dashboards, money boards, device metadata, or private network details.
 
 ## Fresh Pi Install
 
@@ -67,7 +67,6 @@ The deploy script refuses to deploy uncommitted changes, snapshots the previous 
 These files are local to the Pi and are not committed:
 
 - `watch-history.json`
-- `budget-data.json`
 - `assets/slideshow-tv/` personal photo files
 
 The installer creates safe empty data defaults under `~/.local/share/pi-home`, outside the public Nginx document root.

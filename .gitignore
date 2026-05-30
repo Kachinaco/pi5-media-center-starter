@@ -8,9 +8,7 @@ backups/
 *.tmp
 
 # Runtime/local data generated on the Pi
-analytics-config.js
 watch-history.json
-budget-data.json
 
 # Dependency/build/cache folders
 node_modules/

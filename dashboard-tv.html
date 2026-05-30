@@ -442,10 +442,6 @@
             <div id="photo-count" class="value">Loading</div>
           </div>
           <div class="stat">
-            <div class="label">Services</div>
-            <div id="service-value" class="value">Checking</div>
-          </div>
-          <div class="stat">
             <div class="label">TV</div>
             <div class="value">Living TV</div>
           </div>
@@ -631,17 +627,6 @@
       }
     }
 
-    async function loadServices() {
-      try {
-        const data = await getJson("/api/services");
-        const services = Array.isArray(data.services) ? data.services : [];
-        const online = services.filter((service) => service.online);
-        setText("service-value", `${online.length}/${services.length || 4} online`);
-      } catch (error) {
-        setText("service-value", "Unknown");
-      }
-    }
-
     async function loadPlayback() {
       try {
         const data = await getJson("/api/current-playback");
@@ -706,7 +691,7 @@
     }
 
     async function refresh() {
-      await Promise.allSettled([loadWeather(), loadServices(), loadPlayback(), loadRecent()]);
+      await Promise.allSettled([loadWeather(), loadPlayback(), loadRecent()]);
       setUpdated();
     }
 

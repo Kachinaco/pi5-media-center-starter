@@ -12,12 +12,7 @@ const HOST = process.env.PI_HOME_LAUNCHER_HOST || "127.0.0.1";
 const LIVE_ROOT = process.env.PI_HOME_LIVE_ROOT || path.join(os.homedir(), "pi-home-live");
 const DATA_DIR = process.env.PI_HOME_DATA_DIR || path.join(os.homedir(), ".local", "share", "pi-home");
 const WATCH_HISTORY_PATH = process.env.PI_HOME_WATCH_HISTORY_PATH || path.join(DATA_DIR, "watch-history.json");
-const BUDGET_DATA_PATH = process.env.PI_HOME_BUDGET_DATA_PATH || path.join(DATA_DIR, "budget-data.json");
 const ALLOWED_ORIGINS = (process.env.PI_HOME_ALLOWED_ORIGINS || "http://127.0.0.1:8888,http://localhost:8888")
-  .split(",")
-  .map(item => item.trim())
-  .filter(Boolean);
-const MANAGED_SERVICES = (process.env.PI_HOME_SERVICES || "nginx,pi-home-launcher")
   .split(",")
   .map(item => item.trim())
   .filter(Boolean);
@@ -94,16 +89,6 @@ async function writeWatchHistory(items) {
   await fs.rename(tmp, WATCH_HISTORY_PATH);
 }
 
-async function readBudgetData() {
-  try {
-    const text = await fs.readFile(BUDGET_DATA_PATH, "utf8");
-    const data = JSON.parse(text);
-    return data && typeof data === "object" ? data : {};
-  } catch {
-    return {};
-  }
-}
-
 async function statusPayload() {
   const temp = await execText("vcgencmd", ["measure_temp"]);
   const disk = await execText("df", ["-h", LIVE_ROOT]);
@@ -123,24 +108,6 @@ async function statusPayload() {
     liveRoot: "configured",
     dataDir: "configured"
   };
-}
-
-async function serviceState(name) {
-  const active = await execText("systemctl", ["is-active", name]);
-  const enabled = await execText("systemctl", ["is-enabled", name]);
-  return {
-    name,
-    online: active === "active",
-    active: active || "unknown",
-    enabled: enabled || "unknown",
-    ok: active === "active",
-    detail: enabled ? `systemd: ${enabled}` : "systemd service"
-  };
-}
-
-async function servicesPayload() {
-  const services = await Promise.all(MANAGED_SERVICES.map(serviceState));
-  return { ok: true, services };
 }
 
 async function statsPayload() {
@@ -186,19 +153,6 @@ async function route(req, res) {
     return send(res, 200, await statsPayload());
   }
 
-  if (req.method === "GET" && url.pathname === "/api/services") {
-    return send(res, 200, await servicesPayload());
-  }
-
-  if (req.method === "GET" && url.pathname === "/api/network-devices") {
-    return send(res, 200, { ok: true, devices: [] });
-  }
-
-  if (req.method === "POST" && ["/api/network-devices/metadata", "/api/network-devices/control"].includes(url.pathname)) {
-    await readJsonBody(req).catch(() => null);
-    return send(res, 200, { ok: false, configured: false, message: "Network device control is not configured in this starter." });
-  }
-
   if (req.method === "GET" && url.pathname === "/api/watch-history") {
     return send(res, 200, await readWatchHistory(), corsHeaders(req));
   }
@@ -208,10 +162,6 @@ async function route(req, res) {
     const items = Array.isArray(body) ? body : body && body.items;
     await writeWatchHistory(items);
     return send(res, 200, { ok: true, count: items.length }, corsHeaders(req));
-  }
-
-  if (req.method === "GET" && url.pathname === "/api/budget-data") {
-    return send(res, 200, await readBudgetData());
   }
 
   if (req.method === "GET" && url.pathname === "/api/current-playback") {
@@ -226,17 +176,6 @@ async function route(req, res) {
       return send(res, 200, { ok: true, events: [] });
     }
     return send(res, 200, { ok: false, configured: false });
-  }
-
-  if (req.method === "GET" && [
-    "/launch-pokemmo",
-    "/open-firefox",
-    "/open-url",
-    "/open-youtube-desktop",
-    "/open-youtube-mobile",
-    "/quit-browser"
-  ].includes(url.pathname)) {
-    return send(res, 200, { ok: false, configured: false, message: "Desktop launch controls are not configured in this starter." });
   }
 
   return send(res, 404, { ok: false, error: "not found" });

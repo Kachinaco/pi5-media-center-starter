@@ -13,7 +13,6 @@ This Pi serves a deployed static copy through Nginx on `http://localhost:8888`.
 - `dashboard-tv.html` - TV-first dashboard view.
 - `library.html` - TV/movie library and detail view.
 - `play.html` - sandboxed embedded playback page.
-- `budget.html` - optional local budget board.
 - `watch-history.json` - runtime-local watch history file created outside the served live folder.
 
 ## Runtime APIs

@@ -27,9 +27,7 @@ rsync -a --delete \
   --exclude='_archive/' \
   --exclude='backups/' \
   --exclude='tools/' \
-  --exclude='analytics-config.js' \
   --exclude='watch-history.json' \
-  --exclude='budget-data.json' \
   --exclude='assets/slideshow-tv/' \
   --exclude='*.bak' \
   --exclude='*.bak-*' \
@@ -38,9 +36,8 @@ rsync -a --delete \
   "$SOURCE_ROOT/" "$LIVE_ROOT/"
 
 mkdir -p "$DATA_DIR"
-rm -f "$LIVE_ROOT/analytics-config.js" "$LIVE_ROOT/watch-history.json" "$LIVE_ROOT/budget-data.json"
+rm -f "$LIVE_ROOT/watch-history.json"
 [[ -f "$DATA_DIR/watch-history.json" ]] || printf "[]\n" > "$DATA_DIR/watch-history.json"
-[[ -f "$DATA_DIR/budget-data.json" ]] || printf "{}\n" > "$DATA_DIR/budget-data.json"
 
 sudo nginx -t
 sudo systemctl reload nginx
